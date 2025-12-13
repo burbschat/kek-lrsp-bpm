@@ -1,9 +1,9 @@
 #-----------------------------------------------------------------------------
-# This file is part of the 'Simple-rfsoc-4x2-Example'. It is subject to
+# This file is part of the 'kek-lrsp-bpm'. It is subject to
 # the license terms in the LICENSE.txt file found in the top-level directory
 # of this distribution and at:
 #    https://confluence.slac.stanford.edu/display/ppareg/LICENSE.html.
-# No part of the 'Simple-rfsoc-4x2-Example', including this file, may be
+# No part of the 'kek-lrsp-bpm', including this file, may be
 # copied, modified, propagated, or distributed except according to the terms
 # contained in the LICENSE.txt file.
 #-----------------------------------------------------------------------------
@@ -21,7 +21,7 @@ import pyrogue.protocols
 import pyrogue.utilities.fileio
 import pyrogue.utilities.prbs
 
-import simple_rfsoc_4x2_example              as rfsoc
+import kek_lrsp_bpm              as rfsoc
 import axi_soc_ultra_plus_core.rfsoc_utility as rfsoc_utility
 import axi_soc_ultra_plus_core.hardware.RealDigitalRfSoC4x2 as rfsoc_hw
 import axi_soc_ultra_plus_core as soc_core

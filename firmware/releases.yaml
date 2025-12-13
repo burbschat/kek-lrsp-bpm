@@ -1,9 +1,9 @@
 #-----------------------------------------------------------------------------
-# This file is part of the 'Simple-rfsoc-4x2-Example'. It is subject to
+# This file is part of the 'kek-lrsp-bpm'. It is subject to
 # the license terms in the LICENSE.txt file found in the top-level directory
 # of this distribution and at:
 #    https://confluence.slac.stanford.edu/display/ppareg/LICENSE.html.
-# No part of the 'Simple-rfsoc-4x2-Example', including this file, may be
+# No part of the 'kek-lrsp-bpm', including this file, may be
 # copied, modified, propagated, or distributed except according to the terms
 # contained in the LICENSE.txt file.
 #-----------------------------------------------------------------------------
@@ -11,8 +11,8 @@
 GitBase: ..
 
 Targets:
-  SimpleRfSoc4x2Example:
-    ImageDir: targets/SimpleRfSoc4x2Example/images
+  KekLrspBpmBt:
+    ImageDir: targets/KekLrspBpmBt/images
     Extensions:
       - linux.tar.gz
 
@@ -20,6 +20,6 @@ Releases:
   all:
     Primary: True
     Targets:
-      - SimpleRfSoc4x2Example
+      - KekLrspBpmBt
     Types:
       - Yocto

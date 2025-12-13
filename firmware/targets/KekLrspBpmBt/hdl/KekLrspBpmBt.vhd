@@ -3,11 +3,11 @@
 -------------------------------------------------------------------------------
 -- Description: Top Level Firmware Target
 -------------------------------------------------------------------------------
--- This file is part of 'Simple-rfsoc-4x2-Example'.
+-- This file is part of 'kek-lrsp-bpm'.
 -- It is subject to the license terms in the LICENSE.txt file found in the
 -- top-level directory of this distribution and at:
 --    https://confluence.slac.stanford.edu/display/ppareg/LICENSE.html.
--- No part of 'Simple-rfsoc-4x2-Example', including this file,
+-- No part of 'kek-lrsp-bpm', including this file,
 -- may be copied, modified, propagated, or distributed except according to
 -- the terms contained in the LICENSE.txt file.
 -------------------------------------------------------------------------------
@@ -26,7 +26,7 @@ use work.AppPkg.all;
 library axi_soc_ultra_plus_core;
 use axi_soc_ultra_plus_core.AxiSocUltraPlusPkg.all;
 
-entity SimpleRfSoc4x2Example is
+entity KekLrspBpmBt is
    generic (
       TPD_G        : time := 1 ns;
       BUILD_INFO_G : BuildInfoType);
@@ -51,9 +51,9 @@ entity SimpleRfSoc4x2Example is
       -- SYSMON Ports
       vPIn      : in  sl;
       vNIn      : in  sl);
-end SimpleRfSoc4x2Example;
+end KekLrspBpmBt;
 
-architecture top_level of SimpleRfSoc4x2Example is
+architecture top_level of KekLrspBpmBt is
 
    constant HW_INDEX_C   : natural := 0;
    constant RFDC_INDEX_C : natural := 1;

@@ -1,4 +1,4 @@
-# Simple-rfsoc-4x2-Example
+# kek-lrsp-bpm
 
 # Clone the GIT repository
 
@@ -8,7 +8,7 @@ $ git lfs install
 ```
 Clone the git repo with git-lfs enabled
 ```bash
-$ git clone --recursive https://github.com/slaclab/Simple-rfsoc-4x2-Example.git
+$ git clone --recursive https://github.com/slaclab/kek-lrsp-bpm.git
 ```
 Note: `recursive flag` used to initialize all submodules within the clone
 
@@ -19,13 +19,13 @@ Note: `recursive flag` used to initialize all submodules within the clone
 1) Setup Xilinx PATH and licensing (if on SLAC AFS network) else requires Vivado install and licensing on your local machine
 
 ```bash
-$ source Simple-rfsoc-4x2-Example/firmware/vivado_setup.sh
+$ source kek-lrsp-bpm/firmware/vivado_setup.sh
 ```
 
 2) Go to the target directory and make the firmware:
 
 ```bash
-$ cd Simple-rfsoc-4x2-Example/firmware/targets/SimpleRfSoc4x2Example/
+$ cd kek-lrsp-bpm/firmware/targets/KekLrspBpmBt/
 $ make
 ```
 
@@ -35,15 +35,15 @@ $ make
 $ make gui
 ```
 
-The .bit and .XSA files are dumped into the SimpleRfSoc4x2Example/image directory:
+The .bit and .XSA files are dumped into the KekLrspBpmBt/image directory:
 
 ```bash
-$ ls -lath SimpleRfSoc4x2Example/images/
+$ ls -lath KekLrspBpmBt/images/
 total 47M
 drwxr-xr-x 5 ruckman re 2.0K Feb  7 07:13 ..
 drwxr-xr-x 2 ruckman re 2.0K Feb  4 21:15 .
--rw-r--r-- 1 ruckman re  14M Feb  4 21:15 SimpleRfSoc4x2Example-0x03000000-20250710093359-ruckman-XXXXXXX.xsa
--rw-r--r-- 1 ruckman re  33M Feb  4 21:14 SimpleRfSoc4x2Example-0x03000000-20250710093359-ruckman-XXXXXXX.bit
+-rw-r--r-- 1 ruckman re  14M Feb  4 21:15 KekLrspBpmBt-0x03000000-20250710093359-ruckman-XXXXXXX.xsa
+-rw-r--r-- 1 ruckman re  33M Feb  4 21:14 KekLrspBpmBt-0x03000000-20250710093359-ruckman-XXXXXXX.bit
 ```
 
 <!--- ######################################################## -->
@@ -56,14 +56,14 @@ drwxr-xr-x 2 ruckman re 2.0K Feb  4 21:15 .
 
 ```bash
 # These setup scripts assume that you are on SLAC network
-$ source Simple-rfsoc-4x2-Example/firmware/vivado_setup.sh
+$ source kek-lrsp-bpm/firmware/vivado_setup.sh
 ```
 
 3) Go to the target directory and run the `BuildYoctoProject.sh` script with arg pointing to path of .XSA file:
 
 ```bash
-$ cd Simple-rfsoc-4x2-Example/firmware/targets/SimpleRfSoc4x2Example/
-$ source BuildYoctoProject.sh images/SimpleRfSoc4x2Example-0x03000000-20250710093359-ruckman-XXXXXXX.xsa
+$ cd kek-lrsp-bpm/firmware/targets/KekLrspBpmBt/
+$ source BuildYoctoProject.sh images/KekLrspBpmBt-0x03000000-20250710093359-ruckman-XXXXXXX.xsa
 ```
 
 <!--- ######################################################## -->
@@ -82,10 +82,10 @@ Note: Assumes SD memory FAT32 is `/dev/sde1` in instructions below
 ```bash
 sudo mkdir -p boot
 sudo mount /dev/sde1 boot
-sudo cp Simple-rfsoc-4x2-Example/firmware/build/YoctoProjects/SimpleRfSoc4x2Example/images/linux/system.bit boot/.
-sudo cp Simple-rfsoc-4x2-Example/firmware/build/YoctoProjects/SimpleRfSoc4x2Example/images/linux/BOOT.BIN   boot/.
-sudo cp Simple-rfsoc-4x2-Example/firmware/build/YoctoProjects/SimpleRfSoc4x2Example/images/linux/image.ub   boot/.
-sudo cp Simple-rfsoc-4x2-Example/firmware/build/YoctoProjects/SimpleRfSoc4x2Example/images/linux/boot.scr   boot/.
+sudo cp kek-lrsp-bpm/firmware/build/YoctoProjects/KekLrspBpmBt/images/linux/system.bit boot/.
+sudo cp kek-lrsp-bpm/firmware/build/YoctoProjects/KekLrspBpmBt/images/linux/BOOT.BIN   boot/.
+sudo cp kek-lrsp-bpm/firmware/build/YoctoProjects/KekLrspBpmBt/images/linux/image.ub   boot/.
+sudo cp kek-lrsp-bpm/firmware/build/YoctoProjects/KekLrspBpmBt/images/linux/boot.scr   boot/.
 sudo sync boot/
 sudo umount boot
 ```
@@ -107,7 +107,7 @@ sudo umount boot
 1) Using "scp" to copy your .bit file to the SD memory card on the RFSoC.  Here's an example:
 
 ```bash
-scp SimpleRfSoc4x2Example-0x03000000-20250710093359-ruckman-XXXXXXX.bit root@10.0.0.10:/boot/system.bit
+scp KekLrspBpmBt-0x03000000-20250710093359-ruckman-XXXXXXX.bit root@10.0.0.10:/boot/system.bit
 ```
 
 2) Send a "sync" and "reboot" command to the RFSoC to load new firmware:  Here's an example:
@@ -131,13 +131,13 @@ ssh root@10.0.0.10 '/bin/sync; /sbin/reboot'
 1) Setup the rogue environment (if on SLAC AFS network) else install rogue (recommend miniforge method) on your local machine
 
 ```bash
-$ source Simple-rfsoc-4x2-Example/software/setup_env_slac.sh
+$ source kek-lrsp-bpm/software/setup_env_slac.sh
 ```
 
 2) Lauch the GUI:
 
 ```bash
-$ cd Simple-rfsoc-4x2-Example/software
+$ cd kek-lrsp-bpm/software
 $ python scripts/devGui.py --ip 10.0.0.10
 ```
 
