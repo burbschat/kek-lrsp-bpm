@@ -37,10 +37,11 @@ basePath=$(realpath "$PWD/../..")
 
 # Make the build output
 mkdir -p $basePath/build
-mkdir -p $basePath/build/YoctoProjects
-buildPath=$basePath/build/YoctoProjects
+mkdir -p $basePath/build/Yocto
+buildPath=$basePath/build/Yocto
 
 # Execute the common build Yocto project script
 ../../submodules/axi-soc-ultra-plus-core/BuildYoctoProject.sh \
 -p $buildPath -n $targetName -x $xsaPath -h $hwType \
--l $numLane -d $numDest -t $txBuffCnt -r $rxBuffCnt -s $buffSize
+-l $numLane -d $numDest -t $txBuffCnt -r $rxBuffCnt -s $buffSize \
+-T $basePath
