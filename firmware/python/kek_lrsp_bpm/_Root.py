@@ -33,8 +33,9 @@ class Root(pr.Root):
             ip          = '10.0.0.10', # ETH Host Name (or IP address)
             top_level   = '',
             defaultFile = '',
-            lmkConfig   = 'config/lmk/HexRegisterValues.txt',
+            lmkConfig   = 'config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt',
             lmxConfig   = 'config/lmx/HexRegisterValues.txt',
+            sampleRate  = 5.0e9,  # Units of Hz, depends on PLL config
             zmqSrvPort  = 9099, # Set to zero if dynamic (instead of static)
             **kwargs):
         super().__init__(timeout=5.0,**kwargs)
@@ -88,6 +89,7 @@ class Root(pr.Root):
         self.add(rfsoc.RFSoC(
             memBase    = self.memMap,
             offset     = 0x04_0000_0000, # Full 40-bit address space
+            sampleRate = sampleRate,
             expand     = True,
         ))
 
@@ -108,9 +110,10 @@ class Root(pr.Root):
         self.adcLiveDropFifo   = [pr.interfaces.stream.Fifo(name=f'AdcLiveDropFifo[{i}]', maxDepth=1) for i in range(4)] # Drop if more than 1 frame in FIFO
         self.dacLiveDropFifo   = [pr.interfaces.stream.Fifo(name=f'DacLiveDropFifo[{i}]', maxDepth=1) for i in range(2)] # Drop if more than 1 frame in FIFO
         self.adcDropFifo       = [pr.interfaces.stream.Fifo(name=f'AdcDropFifo[{i}]', maxDepth=1) for i in range(4)] # Drop if more than 1 frame in FIFO
-        self.adcLiveProcessor  = [rfsoc_utility.RingBufferProcessor(name=f'AdcLiveProcessor[{i}]',sampleRate=5.0E+9) for i in range(4)]
-        self.dacLiveProcessor  = [rfsoc_utility.RingBufferProcessor(name=f'DacLiveProcessor[{i}]',sampleRate=5.0E+9) for i in range(2)]
-        self.adcProcessor  = [rfsoc_utility.RingBufferProcessor(name=f'AdcProcessor[{i}]',sampleRate=5.0E+9) for i in range(4)]
+        self.adcLiveProcessor  = [rfsoc_utility.RingBufferProcessor(name=f'AdcLiveProcessor[{i}]',sampleRate=sampleRate) for i in range(4)]
+        # DAC SR is set to same as ADC SR in firmware (RFDC IP core)
+        self.dacLiveProcessor  = [rfsoc_utility.RingBufferProcessor(name=f'DacLiveProcessor[{i}]',sampleRate=sampleRate) for i in range(2)]
+        self.adcProcessor  = [rfsoc_utility.RingBufferProcessor(name=f'AdcProcessor[{i}]',sampleRate=sampleRate) for i in range(4)]
 
         # Connect the rogue stream arrays: ADC Ring Buffer Paths
         for i in range(4):

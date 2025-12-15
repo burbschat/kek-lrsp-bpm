@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # This file is part of the 'kek-lrsp-bpm'. It is subject to
 # the license terms in the LICENSE.txt file found in the top-level directory
 # of this distribution and at:
@@ -7,7 +7,7 @@
 # No part of the 'kek-lrsp-bpm', including this file, may be
 # copied, modified, propagated, or distributed except according to the terms
 # contained in the LICENSE.txt file.
-#-----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 import setupLibPaths
 import kek_lrsp_bpm
 
@@ -21,7 +21,7 @@ import axi_soc_ultra_plus_core.rfsoc_utility.pydm
 
 if __name__ == "__main__":
 
-#################################################################
+    #################################################################
 
     # Set the argument parser
     parser = argparse.ArgumentParser()
@@ -58,8 +58,33 @@ if __name__ == "__main__":
         type     = str,
         required = False,
         # default  = None,
-        default  = 'config/defaults.yml',
+        default  = "config/defaults.yml",
         help     = "Sets the default YAML configuration file to be loaded at the root.start()",
+    )
+
+    # TODO: Not sure how close the RFDC PLL config frequencies should be to the
+    # actual sample rate. If problems with e.g. spurs are encountered, perhaps
+    # try adjusting the RFDC IP cores config. However I do not believe that
+    # this matters much as all the dividers etc. in the PLLs should be the
+    # same. Or does it?
+    lmk_configs = {
+        "default": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt", "out_f_MHz": 500},
+        # Below are fractional PLL configs which make it pretty much impossible
+        # to configure for use of both the internal 10MHz oscillator and
+        # external clock signal. The former is therefore not usable with those.
+        # This is required as the LMK on the RFSoC4x2 does not allow to simply
+        # bypass the PLL and use the clock signal directly.
+        "skbrf": {"file": "config/lmk/HexRegisterValues_CLKin0-508MHz89Approx.txt", "out_f_MHz": 508.89},
+        "linacrf": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt", "out_f_MHz": 514.08},
+    }
+
+    parser.add_argument(
+        "--pllConfig",
+        type     = str,
+        required = False,
+        choices  = list(lmk_configs.keys()),
+        default  = "default",
+        help     = f"Select one of available PLL configs: {list(lmk_configs.keys())}",
     )
 
     parser.add_argument(
@@ -83,11 +108,20 @@ if __name__ == "__main__":
 
     #################################################################
 
+    print(f"Using the '{args.pllConfig}' PLL config.")
+    lmk_config_file = lmk_configs[args.pllConfig]["file"]
+    # ADC/DAC(?) sampling rate is reference clock times eight and thus depends
+    # on PLL config! Multiplier defined in RFDC IP core config's PLL settings.
+    refclock_freq = lmk_configs[args.pllConfig]["out_f_MHz"] * 1e6  # in Hz
+    sampleRate = refclock_freq * 8  # in Hz
+
     with kek_lrsp_bpm.Root(
         ip          = args.ip,
         pollEn      = args.pollEn,
         initRead    = args.initRead,
         defaultFile = args.defaultFile,
+        lmkConfig   = lmk_config_file,
+        sampleRate  = sampleRate,
         zmqSrvPort  = args.zmqSrvPort,
     ) as root:
 
