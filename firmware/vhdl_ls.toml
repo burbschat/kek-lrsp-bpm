@@ -1,0 +1,17 @@
+[libraries]
+surf.files = [
+    "./submodules/surf/**/*.vhd"
+]
+
+axi_soc_ultra_plus_core.files = [
+    "./submodules/axi-soc-ultra-plus-core/shared/rtl/*.vhd",
+    "./submodules/axi-soc-ultra-plus-core/shared/rfsoc-utility/**/rtl/*.vhd"
+]
+
+top.files = [
+    "./targets/KekLrspBpmBt/hdl/KekLrspBpmBt.vhd",
+    "./shared/rtl/*.vhd"
+]
+
+[lint]
+unnecessary_work_library = false # Disable linting for the 'library work;' statement
