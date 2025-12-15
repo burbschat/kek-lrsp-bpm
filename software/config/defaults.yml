@@ -2,7 +2,9 @@ Root:
   RFSoC:
     enable: True
     Application:
-      AppRingBuffer:
+      # For some reason enabling continous mode one-by-one after initialization
+      # gets the streams stuck? TODO: Investigate I guess...
+      AppRingBufferLive:
         Adc:
           Ch[:]:
             TrigBurst: 0x0
