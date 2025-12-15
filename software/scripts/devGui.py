@@ -95,9 +95,10 @@ if __name__ == "__main__":
         # Development PyDM GUI
         ######################
         if (args.guiType == 'PyDM'):
+            top_level = os.path.realpath(__file__).split('software')[0]  # Not pretty but works for now
             axi_soc_ultra_plus_core.rfsoc_utility.pydm.runPyDM(
                 serverList = root.zmqServer.address,
-                ui       = f'{os.path.dirname(axi_soc_ultra_plus_core.rfsoc_utility.__file__)}/gui/GuiTop.py',
+                ui       = f'{top_level}/firmware/python/kek_lrsp_bpm/gui/GuiTop.py',
                 sizeX    = 800,
                 sizeY    = 800,
                 numAdcCh = 4,
