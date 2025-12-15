@@ -166,4 +166,17 @@ class Root(pr.Root):
         else:
             self.RFSoC.Application.DacSigGenLoader.LoadSingleTones()
 
+        # Unhide all nodes recursively
+        def unhide_recursive(dev):
+            # print("called for ", dev, hasattr(dev, "hidden"), hasattr(dev, "_nodes"))
+            if dev.inGroup("Hidden"):
+                # print("unhide")
+                dev.removeFromGroup("Hidden")
+            if hasattr(dev, "_nodes"):
+                # print("recursive call")
+                for node_name, node_pointer in dev._nodes.items():
+                    unhide_recursive(node_pointer)
+
+        unhide_recursive(self)
+
     ##################################################################################
