@@ -37,6 +37,8 @@ entity Application is
       dmaRst          : in  sl;
       dmaIbMaster     : out AxiStreamMasterType;
       dmaIbSlave      : in  AxiStreamSlaveType;
+      -- Trigger Inputs
+      trigsIn         :     slv(1 downto 0);
       -- ADC/DAC Interface (dspClk domain)
       dspClk          : in  sl;
       dspRst          : in  sl;
@@ -58,8 +60,8 @@ architecture mapping of Application is
    constant RAM_ADDR_WIDTH_C      : positive := 10;
    constant RAM_ADDR_WIDTH_LIVE_C : positive := 10;
 
-   constant RING_INDEX_LIVE_C    : natural := 0; -- Used for axil and axis!
-   constant RING_INDEX_C         : natural := 1; -- Used for axil and axis!
+   constant RING_INDEX_LIVE_C    : natural := 0;  -- Used for axil and axis!
+   constant RING_INDEX_C         : natural := 1;  -- Used for axil and axis!
    constant DAC_SIG_INDEX_C      : natural := 2;
    constant READOUT_CTRL_INDEX_C : natural := 3;
    constant NUM_AXIL_MASTERS_C   : natural := 4;
@@ -135,7 +137,7 @@ begin
       generic map(TPD_G => TPD_G)
       port map(
          -- Trigger Ports
-         trigIn          => '0', -- TODO: PUT TRIGGER!!!
+         trigsIn         => trigsIn,
          ringBufTrigOut  => ringBufTrig,
          -- DSP Interface
          dspClk          => dspClk,

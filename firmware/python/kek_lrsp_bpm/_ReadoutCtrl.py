@@ -16,7 +16,7 @@ class ReadoutCtrl(pr.Device):
 
         self.add(pr.RemoteVariable(
             name         = 'SwTrig',
-            description  = 'Software Fault Trigger',
+            description  = 'Software ring buffer rigger',
             offset       = 0x4,
             bitSize      = 1,
             mode         = 'WO',
@@ -25,7 +25,7 @@ class ReadoutCtrl(pr.Device):
 
         @self.command()
         def SendSwTrig():
-            self.SwFaultTrigRaw.set(1)
+            self.SwTrig.set(1)
 
         # Put those back if required. Registers remain in hld but for now do nothing.
         # for i in range(4):
@@ -52,24 +52,17 @@ class ReadoutCtrl(pr.Device):
         #         # hidden       = True,
         #     ))
 
-        # intfType = 'Sma1pps'
-        # intfDict = {
-        #     0x0: 'irigTrig',
-        #     0x1: 'irigComp',
-        #     0x2: 'ReservedA',
-        #     0x3: 'ReservedB',
-        # }
-
-        # TODO: Put this back into the hdl as we want to select between at
-        # least two sources even for RFSoC4x2!
-        # self.add(pr.RemoteVariable(
-        #     name         = f'{intfType}InSel',
-        #     description  = f'Selects the input {intfType} port to use as fault signal',
-        #     offset       = 0x20,
-        #     bitSize      = 2,
-        #     bitOffset    = 16,
-        #     enum         = intfDict,
-        # ))
+        self.add(pr.RemoteVariable(
+            name         = f'TrigInSelIdx',
+            description  = f'Currently selected trigger source',
+            offset       = 0x20,
+            bitSize      = 2,
+            bitOffset    = 16,
+            enum         = {
+                0x0: 'irigTrig',
+                0x1: 'irigComp',
+            },
+        ))
 
         self.add(pr.RemoteVariable(
             name         = f'TrigInPolarity',
@@ -111,7 +104,7 @@ class ReadoutCtrl(pr.Device):
         ))
 
         self.add(pr.RemoteVariable(
-            name         = "FaultTrigDlyRaw",
+            name         = "TrigRingBufDlyRaw",
             description  = "Sets a delay between trigger detection and stopping the ring buffer",
             offset       = 0x2C,
             bitSize      = 24,
@@ -120,14 +113,14 @@ class ReadoutCtrl(pr.Device):
         ))
 
         self.add(pr.LinkVariable(
-            name         = "FaultTrigDly",
-            description  = "FaultTrigDly in microseconds",
+            name         = "TrigRingBufDly",
+            description  = "TrigRingBufDly in microseconds",
             mode         = "RW",
             units        = "microsec",
             disp         = '{:0.3f}',
-            dependencies = [self.FaultTrigDlyRaw],
-            linkedGet    = lambda: (float(self.FaultTrigDlyRaw.value()+1) * (1.0/254.5)),
-            linkedSet    = lambda value, write: self.FaultTrigDlyRaw.set(int(value/(1.0/254.5))-1),
+            dependencies = [self.TrigRingBufDlyRaw],
+            linkedGet    = lambda: (float(self.TrigRingBufDlyRaw.value()+1) * (1.0/254.5)),
+            linkedSet    = lambda value, write: self.TrigRingBufDlyRaw.set(int(value/(1.0/254.5))-1),
         ))
 
         self.add(pr.RemoteVariable(
