@@ -143,11 +143,10 @@ class Root(pr.Root):
             self.add(self.adcLiveProcessor[i])
             self.add(self.adcProcessor[i])
 
-
         self.ringBufferAdc >> self.dataWriter.getChannel(0 + 4)  # Use same channel numbers as axis TDEST for consistency
 
-        # Connect position calculation
-        self.ringBufferAdc >> self.posCalcDropFifo >> self.posCalcProc
+        # Position calculation streams are connected later after initializing
+        # the fitter.
         self.add(self.posCalcDropFifo)
         self.add(self.posCalcProc)
 
@@ -207,6 +206,11 @@ class Root(pr.Root):
         # Initial loading of position computation related data like poly
         # coeffs, signal maps etc.
         self.posCalcProc.startupInit()
+
+        # Connect position calculation. Do so after initializing the fitter to
+        # avoid the fitter being called with default values which would arrive
+        # through the stream if already set up.
+        self.ringBufferAdc >> self.posCalcDropFifo >> self.posCalcProc
 
         # The main ring buffer requires some setup, namely removing rate limit
         self.RFSoC.Application.startupInit()
