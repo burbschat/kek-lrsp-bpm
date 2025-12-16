@@ -10,3 +10,6 @@
 [submodule "firmware/submodules/axi-soc-ultra-plus-core"]
 	path = firmware/submodules/axi-soc-ultra-plus-core
 	url = ../axi-soc-ultra-plus-core.git
+[submodule "firmware/src/bobyqa"]
+	path = firmware/src/bobyqa
+	url = https://github.com/pitzl/bobyqa.git

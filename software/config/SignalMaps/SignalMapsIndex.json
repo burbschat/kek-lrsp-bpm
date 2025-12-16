@@ -1,0 +1,40 @@
+{
+    "bemmapherExact": {
+        "filepath": "bemmapher2025.csv",
+        "xsize": 8.0,
+        "ysize": 5.0,
+        "xstep": 0.1,
+        "ystep": 0.1,
+        "note": "Choose rectangle not intersecting boundary. A wider one is prefered as the beam should never reach the upper/lower edges of the chamber, but may reach the left/right edge. One would think that this is sufficient, but if not at least the corner radius is subtracted for both directions, the map is still not well behaved.",
+        "xfitbbox": 6.0,
+        "yfitbbox": 2.5
+    },
+    "bemmaplerExact": {
+        "filepath": "bemmapler2025.csv",
+        "xsize": 8.0,
+        "ysize": 5.0,
+        "xstep": 0.1,
+        "ystep": 0.1,
+        "xfitbbox": 6.8,
+        "yfitbbox": 2.5
+    },
+    "bemmapher2025": {
+        "filepath": "bemmapher.csv",
+        "xsize": 8.0,
+        "ysize": 5.0,
+        "xstep": 0.1,
+        "ystep": 0.1,
+        "xfitbbox": 6.0,
+        "yfitbbox": 2.5
+    },
+    "bemmapler2025": {
+        "filepath": "bemmapler.csv",
+        "xsize": 8.0,
+        "ysize": 5.0,
+        "xstep": 0.1,
+        "ystep": 0.1,
+        "xfitbbox": 6.8,
+        "yfitbbox": 2.5
+    }
+}
+
