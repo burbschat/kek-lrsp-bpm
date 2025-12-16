@@ -33,10 +33,13 @@ class Application(pr.Device):
             # expand   = True,
         ))
 
+        # Here four channels are interlevaed into one stream to ensure
+        # synchronization between channels. One must de-interleave those later
+        # manually.
         self.add(rfsoc_utility.AppRingBuffer(
             name     = "AppRingBuffer",
             offset   = 0x01_000000,
-            numAdcCh = 4, # Must match NUM_ADC_CH_G config
+            numAdcCh = 1, # Must match NUM_ADC_CH_G config
             numDacCh = 0, # Must match NUM_DAC_CH_G config
             # expand   = True,
         ))
@@ -72,3 +75,7 @@ class Application(pr.Device):
             SSR         = ssr,
             expand      = True,
         ))
+
+    def startupInit(self):
+        # Disable frame rate limit
+        self.AppRingBuffer.RateLimiter.MaxFrameRate.set(0x0)

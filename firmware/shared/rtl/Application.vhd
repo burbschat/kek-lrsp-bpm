@@ -81,6 +81,8 @@ architecture mapping of Application is
    signal dac      : Slv256Array(1 downto 0) := (others => (others => '0'));
    signal loopback : Slv256Array(1 downto 0) := (others => (others => '0'));
 
+   signal adcInterleaved : slv(NUM_ADC_CH_C*256 - 1 downto 0) := (others => '0');
+
    signal ringBufTrig : sl;
 
 begin
@@ -154,22 +156,32 @@ begin
          axilWriteSlave  => axilWriteSlaves(READOUT_CTRL_INDEX_C)
          );
 
+   -- Interleave samples into a single stream as an easy way to ensure
+   -- synchronization between all four channels. This uses a maximally wide
+   -- axis data bus and thus only works with up to four channels. For more
+   -- channels, a different solution (e.g. frame headers) will be required.
+   interleave_map : process (adc) is
+   begin
+      for idx in 0 to (256/16)-1 loop
+         for ch in 0 to 3 loop
+            adcInterleaved(idx*4*16+(ch*16+15) downto idx*4*16+(ch*16)) <= adc(ch)(idx*16+15 downto idx*16);
+         end loop;
+      end loop;
+   end process interleave_map;
+
    U_AppRingBuffer : entity axi_soc_ultra_plus_core.AppRingBuffer
       generic map (
          TPD_G                  => TPD_G,
          EN_ADC_BUFF_G          => true,
          EN_DAC_BUFF_G          => false,  -- Don't need DACs here
-         NUM_ADC_CH_G           => NUM_ADC_CH_C,
-         ADC_SAMPLE_PER_CYCLE_G => SAMPLE_PER_CYCLE_C,
+         NUM_ADC_CH_G           => 1,  -- Only one as interleaved into one stream
+         ADC_SAMPLE_PER_CYCLE_G => SAMPLE_PER_CYCLE_C * 4,  -- Four times as many due to interleaving
          DAC_SAMPLE_PER_CYCLE_G => SAMPLE_PER_CYCLE_C,
          RAM_ADDR_WIDTH_G       => RAM_ADDR_WIDTH_C,
          AXIL_BASE_ADDR_G       => AXIL_CONFIG_C(RING_INDEX_C).baseAddr,
          -- Ensure no overlap between routes for different buffers!
          ADC_TDEST_ROUTES_G     => (
             0                   => x"04",
-            1                   => x"05",
-            2                   => x"06",
-            3                   => x"07",
             others              => x"FF")
          )
       port map (
@@ -181,10 +193,7 @@ begin
          -- ADC/DAC Interface (dspClk domain)
          dspClk          => dspClk,
          dspRst          => dspRst,
-         dspAdc0         => adc(0),
-         dspAdc1         => adc(1),
-         dspAdc2         => adc(2),
-         dspAdc3         => adc(3),
+         dspAdc0         => adcInterleaved,
          -- AXI-Lite Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,

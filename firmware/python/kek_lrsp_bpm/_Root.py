@@ -177,6 +177,9 @@ class Root(pr.Root):
         else:
             self.RFSoC.Application.DacSigGenLoader.LoadSingleTones()
 
+        # The main ring buffer requires some setup, namely removing rate limit
+        self.RFSoC.Application.startupInit()
+
         # Unhide all nodes recursively
         def unhide_recursive(dev):
             # print("called for ", dev, hasattr(dev, "hidden"), hasattr(dev, "_nodes"))
