@@ -6,6 +6,7 @@ from pyrogue.pydm.widgets import DebugTree
 from pyrogue.pydm.widgets import SystemWindow
 
 import axi_soc_ultra_plus_core.rfsoc_utility.gui as gui
+import kek_lrsp_bpm.gui as guiUser
 
 Channel = "rogue://0/root"
 
@@ -78,9 +79,15 @@ class GuiTop(Display):
         self.tab.addTab(dacDisplayLive, "DAC Live")
 
         # ADC Display (Tab Index=4)
-        adcDisplay = gui.LiveDisplay(parent=None, init_channel=Channel, dispType="Adc", numCh=self.numAdcCh)
-        adcDisplay.color = self.channelColors * 4
-        self.tab.addTab(adcDisplay, "ADC")
+        self.tab.addTab(
+            guiUser.WaveformDisplay(
+                parent=None,
+                init_channel=Channel,
+                nodePath="SoftwarePositionCalculation",
+                waveformNodeName="WaveformData",
+            ),
+            "ADC",
+        )
 
         # Set the default Tab view
         self.tab.setCurrentIndex(2)
