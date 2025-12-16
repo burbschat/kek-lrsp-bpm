@@ -170,7 +170,7 @@ class WaveformDisplay(PyDMFrame):
 
         # -----------------------------------------------------------------------------
 
-        gb = QGroupBox("Shaded regions indicate regions used for signal integration (1st bunch: red, 2nd bunch: blue)")
+        gb = QGroupBox("Shaded regions indicate regions used for signal integration")
         vb.addWidget(gb)
 
         fl = QFormLayout()
