@@ -53,8 +53,6 @@ class Application(pr.Device):
             # expand       = True,
         ))
 
-        print(sampleRate, type(sampleRate))
-
         self.add(rfsoc_utility.SigGenLoader(
             name         = 'DacSigGenLoader',
             DacSigGen    = self.DacSigGen,
