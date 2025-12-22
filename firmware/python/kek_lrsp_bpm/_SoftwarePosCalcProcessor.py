@@ -152,16 +152,29 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             )
         )
 
+        self.add(
+            pr.LocalVariable(
+                name=f"polyEn",
+                description="Enable polynomial position calculation",
+                typeStr="bool",
+                value=not self._hardDisablePoly,
+                hidden=False,
+                mode="RO" if self._hardDisablePoly else "RW",
+                localSet=self.updatePosCalcNodesVisibility,
+            )
+        )
+
         if not self._hardDisablePoly:
             # Options for position computation may be (soft) disabled during runtime
             self.add(
                 pr.LocalVariable(
-                    name=f"polyEn",
-                    description="Enable polynomial position calculation",
-                    typeStr="bool",
-                    value=True,
+                    name="PolyCoeffsFilePath",
+                    description="Path to json file containing polynomial coefficients (and other metadata like degree)",
+                    typeStr="str",
+                    value="./config/SignalMaps/bemmapher_fit_coeffs.json",
+                    localSet=self._loadPolyCoeffs,
+                    groups=["fitPosCalc"],
                     hidden=False,
-                    localSet=self.updatePosCalcNodesVisibility,
                 )
             )
 
@@ -212,18 +225,20 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             #     )
             # )
 
+        self.add(
+            pr.LocalVariable(
+                name=f"fitEn",
+                description="Enable fit position calculation",
+                typeStr="bool",
+                value=not self._hardDisableFit,
+                hidden=False,
+                mode="RO" if self._hardDisableFit else "RW",
+                localSet=self.updatePosCalcNodesVisibility,
+            )
+        )
+
         if not self._hardDisableFit:
             # Options for position computation may be (soft) disabled during runtime
-            self.add(
-                pr.LocalVariable(
-                    name=f"fitEn",
-                    description="Enable fit position calculation",
-                    typeStr="bool",
-                    value=True,
-                    hidden=False,
-                    localSet=self.updatePosCalcNodesVisibility,
-                )
-            )
 
             self.add(
                 pr.LocalVariable(
@@ -617,7 +632,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             # Re-load the polynomial coefficients
             self._loadPolyCoeffs()
 
-    def _loadPolyCoeffs(self):
+    def _getCoeffsFilePathFromMapName(self):
         # Read metadata from index
         selectedMapIndex = self._signalMapIndex[self.SignalMapName.get()]
         # Map file path in index file is relative to location of the index file
@@ -625,14 +640,53 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         coeffsFilePath = os.path.join(
             os.path.dirname(signalMapPath), os.path.basename(signalMapPath).split(".")[0] + "_fit_coeffs.json"
         )
+        return coeffsFilePath
+
+    def _loadPolyCoeffs(self):
+        # No longer use this as this does not really make sense when the fit is
+        # disabled (as for BT). Introduced variable PolyCoeffsFilePath to provide
+        # the required path directly.
+        # coeffsFilePath = self._getCoeffsFilePathFromMapName()
+
+        coeffsFilePath = self.PolyCoeffsFilePath.get()
+        self._log.info(f"Loading polynomial coefficients from {coeffsFilePath}")
         with open(coeffsFilePath, "r") as f:
             coeffs_dict = json.load(f)
 
-        # Set degree
-        self.PolyDegree.set(coeffs_dict["degree"])
+        degree = coeffs_dict["degree"]
+
         # Set x and y coeffs (assuming correct order!)
-        coeffs_x = np.array(coeffs_dict["x"]["coeffs"])
-        coeffs_y = np.array(coeffs_dict["y"]["coeffs"])
+        # coeffs_x = np.array(coeffs_dict["x"]["coeffs"])
+        # coeffs_y = np.array(coeffs_dict["y"]["coeffs"])
+
+        # Perform selective loading where coefficients not present in the file
+        # are assumed to be zero (required for BT data).
+
+        poly = PolynomialFeatures(degree, include_bias=True)
+        poly.fit(np.zeros((1, 2)))  # Dummy fit so I can obtain feature names...
+        coeff_names = list(poly.get_feature_names_out())  # Get coefficient names
+        n_terms = len(coeff_names)
+        # Start off with all zeros
+        coeffs = {
+            "x": np.zeros(n_terms),
+            "y": np.zeros(n_terms),
+        }
+
+        for direction in ["x", "y"]:
+            for coeff_name, coeff_value in zip(coeffs_dict[direction]["names"], coeffs_dict[direction]["coeffs"]):
+                print(coeff_name, coeff_value)
+                idx = coeff_names.index(coeff_name)
+                print(f"Inserting at {idx} ({direction})")
+                coeffs[direction][idx] = coeff_value
+
+        coeffs_x = coeffs["x"]
+        coeffs_y = coeffs["y"]
+
+        print(coeffs_x)
+        print(coeffs_y)
+
+        # Set degree
+        self.PolyDegree.set(degree)
         self.PolyCoeffX.set(coeffs_x)
         self.PolyCoeffY.set(coeffs_y)
         # Update typestring and ndType (is this really the indended way?)
@@ -713,13 +767,15 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
 
     def startupInit(self):
         # Cant have these calls in __init__ as there the local variables are not ready yet?
-        print(self.SignalMapIndexFile.get())
-        # Load signal map index
-        self._loadSignalMapsIndex()
-        # Initialize cpp fitter
-        self._initCppFitter()
-        # Load the polynomial coefficients
-        self._loadPolyCoeffs()
+        if not self._hardDisableFit:
+            print(self.SignalMapIndexFile.get())
+            # Load signal map index
+            self._loadSignalMapsIndex()
+            # Initialize cpp fitter
+            self._initCppFitter()
+        if not self._hardDisablePoly:
+            # Load the polynomial coefficients
+            self._loadPolyCoeffs()
 
     # Method which updates the waveform PV from external function
     def UpdateWaveform(self):
@@ -758,67 +814,74 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
 
                 charge_threshold = self.ChargeThreshold[i].get()
                 if charge >= charge_threshold:
-                    # Process waveforms to get positions
-                    # Polynomial computation
-                    xposPoly, yposPoly = self._computePosPoly(sums)
-                    # Fit computation. Fails with exception if the fit does not
-                    # converge leading to this function to return before the results
-                    # are written to the local variables (intended behaviour).
-                    xposFit, yposFit = self._computePosFit(sums, np.array([True, True, True, True]))
+                    polyEn = self.polyEn.get()
+                    fitEn = self.fitEn.get()
+                    if polyEn:
+                        # Process waveforms to get positions
+                        # Polynomial computation
+                        xposPoly, yposPoly = self._computePosPoly(sums)
+                    if fitEn:
+                        # Fit computation. Fails with exception if the fit does not
+                        # converge leading to this function to return before the results
+                        # are written to the local variables (intended behaviour).
+                        xposFit, yposFit = self._computePosFit(sums, np.array([True, True, True, True]))
 
-                    # TODO: Make less verbose
-                    xposFitMasked0111, yposFitMasked0111 = self._computePosFit(
-                        sums, np.array([False, True, True, True])
-                    )
-                    xposFitMasked1011, yposFitMasked1011 = self._computePosFit(
-                        sums, np.array([True, False, True, True])
-                    )
-                    xposFitMasked1101, yposFitMasked1101 = self._computePosFit(
-                        sums, np.array([True, True, False, True])
-                    )
-                    xposFitMasked1110, yposFitMasked1110 = self._computePosFit(
-                        sums, np.array([True, True, True, False])
-                    )
+                        # TODO: Make less verbose
+                        xposFitMasked0111, yposFitMasked0111 = self._computePosFit(
+                            sums, np.array([False, True, True, True])
+                        )
+                        xposFitMasked1011, yposFitMasked1011 = self._computePosFit(
+                            sums, np.array([True, False, True, True])
+                        )
+                        xposFitMasked1101, yposFitMasked1101 = self._computePosFit(
+                            sums, np.array([True, True, False, True])
+                        )
+                        xposFitMasked1110, yposFitMasked1110 = self._computePosFit(
+                            sums, np.array([True, True, True, False])
+                        )
 
-                    xposFitMaskedMean = np.mean(
-                        [xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110]
-                    )
-                    yposFitMaskedMean = np.mean(
-                        [yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110]
-                    )
+                        xposFitMaskedMean = np.mean(
+                            [xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110]
+                        )
+                        yposFitMaskedMean = np.mean(
+                            [yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110]
+                        )
 
-                    xposFitMaskedStd = np.std(
-                        [xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110]
-                    )
-                    yposFitMaskedStd = np.std(
-                        [yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110]
-                    )
+                        xposFitMaskedStd = np.std(
+                            [xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110]
+                        )
+                        yposFitMaskedStd = np.std(
+                            [yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110]
+                        )
 
                     # Write results to variables
                     self.Sums[i].set(sums_raw)  # Use uncorrected values!
                     self.SumsSq[i].set(sums_sq_raw)  # Use uncorrected values!
 
-                    self.XposPoly[i].set(-xposPoly)
-                    self.YposPoly[i].set(yposPoly)
+                    if polyEn:
+                        # TODO: Check if here we also want the sign flip!
+                        self.XposPoly[i].set(-xposPoly)
+                        self.YposPoly[i].set(yposPoly)
 
-                    self.XposFit[i].set(-xposFit)
-                    self.YposFit[i].set(yposFit)
+                    if fitEn:
+                        self.XposFit[i].set(-xposFit)
+                        self.YposFit[i].set(yposFit)
 
-                    self.XposFitMasked0111[i].set(-xposFitMasked0111)
-                    self.XposFitMasked1011[i].set(-xposFitMasked1011)
-                    self.XposFitMasked1101[i].set(-xposFitMasked1101)
-                    self.XposFitMasked1110[i].set(-xposFitMasked1110)
+                        self.XposFitMasked0111[i].set(-xposFitMasked0111)
+                        self.XposFitMasked1011[i].set(-xposFitMasked1011)
+                        self.XposFitMasked1101[i].set(-xposFitMasked1101)
+                        self.XposFitMasked1110[i].set(-xposFitMasked1110)
 
-                    self.YposFitMasked0111[i].set(yposFitMasked0111)
-                    self.YposFitMasked1011[i].set(yposFitMasked1011)
-                    self.YposFitMasked1101[i].set(yposFitMasked1101)
-                    self.YposFitMasked1110[i].set(yposFitMasked1110)
+                        self.YposFitMasked0111[i].set(yposFitMasked0111)
+                        self.YposFitMasked1011[i].set(yposFitMasked1011)
+                        self.YposFitMasked1101[i].set(yposFitMasked1101)
+                        self.YposFitMasked1110[i].set(yposFitMasked1110)
 
-                    self.XposFitMaskedStd[i].set(xposFitMaskedStd)
-                    self.YposFitMaskedStd[i].set(yposFitMaskedStd)
+                        self.XposFitMaskedStd[i].set(xposFitMaskedStd)
+                        self.YposFitMaskedStd[i].set(yposFitMaskedStd)
 
-                    self.XposFitMaskedMean[i].set(-xposFitMaskedMean)
-                    self.YposFitMaskedMean[i].set(yposFitMaskedMean)
+                        self.XposFitMaskedMean[i].set(-xposFitMaskedMean)
+                        self.YposFitMaskedMean[i].set(yposFitMaskedMean)
 
                     self.Charge[i].set(charge)
 

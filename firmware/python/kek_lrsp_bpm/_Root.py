@@ -134,6 +134,7 @@ class Root(pr.Root):
             bufferDepth=2**10 * 16,  # TODO: Make dynamic!
             nWindows=5,
             hidden=False,
+            hardDisableFit=True,  # Maybe implement command line argument to enable/disable fit/poly...
         )
 
         # Connect the rogue stream arrays: ADC Ring Buffer Paths
