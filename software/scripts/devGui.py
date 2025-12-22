@@ -76,6 +76,7 @@ if __name__ == "__main__":
         # bypass the PLL and use the clock signal directly.
         "skbrf": {"file": "config/lmk/HexRegisterValues_CLKin0-508MHz89Approx.txt", "out_f_MHz": 508.89},
         "linacrf": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt", "out_f_MHz": 514.08},
+        "oc520": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz_OC520MHz.txt", "out_f_MHz": 520},
     }
 
     parser.add_argument(
@@ -113,7 +114,11 @@ if __name__ == "__main__":
     # ADC/DAC(?) sampling rate is reference clock times eight and thus depends
     # on PLL config! Multiplier defined in RFDC IP core config's PLL settings.
     refclock_freq = lmk_configs[args.pllConfig]["out_f_MHz"] * 1e6  # in Hz
-    sampleRate = refclock_freq * 8  # in Hz
+    # Multiplication factor must match RfDC IP core config!
+    # With 10 + lock on 509 we are thus actually overclocking (a little bit)
+    sampleRate = refclock_freq * 10  # in Hz
+
+    print(f"ADC sample rate is: {sampleRate/1e9} GHz")
 
     with kek_lrsp_bpm.Root(
         ip          = args.ip,
