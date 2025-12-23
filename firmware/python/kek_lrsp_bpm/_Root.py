@@ -107,6 +107,24 @@ class Root(pr.Root):
             )
         )
 
+        adcBlocks = {
+            "A": self.Rfdc.AdcTile[2].AdcBlock[2],
+            "B": self.Rfdc.AdcTile[2].AdcBlock[0],
+            "C": self.Rfdc.AdcTile[0].AdcBlock[2],
+            "D": self.Rfdc.AdcTile[0].AdcBlock[0],
+        }
+
+        # High level aliases for attenuation settings available on gen3 rfsoc
+        self.add(rfsoc.AttenuationCtrl(
+            AdcBlocks=adcBlocks
+        ))
+
+        # Dumping/loading of ADC calibration coefficients
+        self.add(rfsoc.CalibrationCtrl(
+            adcBlocks=adcBlocks,
+            coeffFile=f"config/adcCalibCoeffs.json"  # TODO: Make this not the same file for all instances!
+        ))
+
         ##################################################################################
         ##                              Data Path
         ##################################################################################
