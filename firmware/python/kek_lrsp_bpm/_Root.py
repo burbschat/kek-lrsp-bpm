@@ -151,7 +151,7 @@ class Root(pr.Root):
             name="SoftwarePositionCalculation",
             sampleRate=sampleRate,
             signalMapIndexFile=self.signalMapsIndexFile,  # Default value, can be changed dynamically
-            bufferDepth=2**10 * 16,  # TODO: Make dynamic!
+            bufferDepth=2**8 * 16,  # TODO: Make dynamic!
             nWindows=5,
             hidden=False,
             hardDisableFit=True,  # Maybe implement command line argument to enable/disable fit/poly...

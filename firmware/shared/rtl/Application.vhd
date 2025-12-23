@@ -57,7 +57,7 @@ architecture mapping of Application is
 
    constant NUM_ADC_CH_C          : positive := 4;
    constant NUM_DAC_CH_C          : positive := 2;
-   constant RAM_ADDR_WIDTH_C      : positive := 10;
+   constant RAM_ADDR_WIDTH_C      : positive := 8;
    constant RAM_ADDR_WIDTH_LIVE_C : positive := 10;
 
    constant RING_INDEX_LIVE_C    : natural := 0;  -- Used for axil and axis!
