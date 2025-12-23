@@ -68,6 +68,8 @@ class Root(pr.Root):
         self.dataWriter = pr.utilities.fileio.StreamWriter(name="DataWriter")
         self.add(self.dataWriter)
 
+        self.prependLocalTime = rfsoc.PrependLocalTime()
+
         ##################################################################################
         ##                              Register Access
         ##################################################################################
@@ -144,7 +146,7 @@ class Root(pr.Root):
             self.add(self.adcLiveProcessor[i])
             self.add(self.adcProcessor[i])
 
-        self.ringBufferAdc >> self.dataWriter.getChannel(0 + 4)  # Use same channel numbers as axis TDEST for consistency
+        self.ringBufferAdc >> self.prependLocalTime >> self.dataWriter.getChannel(0 + 4)  # Use same channel numbers as axis TDEST for consistency
 
         # Position calculation streams are connected later after initializing
         # the fitter.
