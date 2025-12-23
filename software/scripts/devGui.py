@@ -75,7 +75,8 @@ if __name__ == "__main__":
         # This is required as the LMK on the RFSoC4x2 does not allow to simply
         # bypass the PLL and use the clock signal directly.
         "skbrf": {"file": "config/lmk/HexRegisterValues_CLKin0-508MHz89Approx.txt", "out_f_MHz": 508.89},
-        "linacrf": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt", "out_f_MHz": 514.08},
+        "linacrf": {"file": "config/lmk/HexRegisterValues_CLKin0-114MHz24Approx.txt", "out_f_MHz": 514.08},
+        "linacrf_half": {"file": "config/lmk/HexRegisterValues_CLKin0-57MHz12Approx.txt", "out_f_MHz": 514.08},
         "oc520": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz_OC520MHz.txt", "out_f_MHz": 520},
     }
 
