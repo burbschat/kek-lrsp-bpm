@@ -153,7 +153,7 @@ class Root(pr.Root):
 
         # Connect the rogue stream arrays: DAC Ring Buffer Path
         for i in range(2):
-            self.ringBufferDacLive[i] >> self.dataWriter.getChannel(i + 16)
+            # self.ringBufferDacLive[i] >> self.dataWriter.getChannel(i + 16)
             self.ringBufferDacLive[i] >> self.dacLiveDropFifo[i] >> self.dacLiveProcessor[i]
             self.add(self.dacLiveProcessor[i])
 
