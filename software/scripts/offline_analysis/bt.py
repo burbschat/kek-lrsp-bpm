@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from scipy import stats
-from threebpmtools import fit_single_direction
+from threebpmtools import fit_single_direction, plane2d
 
 # Add library paths (not sure how to import `setupLibPaths.py` here...)
 import pyrogue as pr
@@ -278,13 +278,45 @@ def main():
     if check_plot:
         fig_wav.savefig("waveforms_windows.png")
 
+    # Fit to extrapolate positon at third from other two
     fit_direction = 0
-    fit_single_direction(
-        pos_all[:, 0, fit_direction],
-        pos_all[:, 1, fit_direction],
-        pos_all[:, 2, fit_direction],
+    ref_bpm_idx_1 = 0
+    ref_bpm_idx_2 = 1
+    target_bpm_idx = 2
+    pos_ref_1 = pos_all[:, ref_bpm_idx_1, fit_direction]
+    pos_ref_2 = pos_all[:, ref_bpm_idx_2, fit_direction]
+    pos_target = pos_all[:, target_bpm_idx, fit_direction]
+    popt = fit_single_direction(
+        pos_ref_1,
+        pos_ref_2,
+        pos_target,
         check_plot=True,
     )
+
+    # Predict positions using the fit (always on the fitted "average" plane)
+    pos_pred = plane2d([pos_ref_1, pos_ref_2], *popt)
+
+    # Compute residual between predicted and measured position
+    pos_resid = pos_target - pos_pred
+    # Plot residuals distribution
+    fig_resid, ax_resid = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))
+    # Fit gaussian to the distribution
+    resid_dist = stats.norm
+    resid_fit_res = stats.fit(resid_dist, pos_resid, bounds=[(-20, 20), (1e-9, 20)])  # Set appropriate limits!
+    resid_fit_curve_lsp = np.linspace(min(pos_resid), max(pos_resid), 100)
+    resid_fit_curve_vals = resid_dist.pdf(resid_fit_curve_lsp, resid_fit_res.params.loc, resid_fit_res.params.scale)
+    # Compute resolution under assumption of equal resolutions by assuming the
+    # width (sigma) of the residual distribution to eqal the root of the sum of
+    # three equal resolutions squared.
+    resolution_est = 1/np.sqrt(3) * resid_fit_res.params.scale
+    # Unite results in a plot
+    ax_resid.hist(pos_resid, bins=30, color="royalblue", density=True, label="meas. pos. - pred. pos.")
+    ax_resid.plot(resid_fit_curve_lsp, resid_fit_curve_vals, color="red", label=f"Gaussian Fit: $\\sigma={resid_fit_res.params.scale}, \\mu={resid_fit_res.params.loc}$")
+    ax_resid.legend()
+    bpm_names = list(windows_neg.keys())
+    ax_resid.set_title(f"ref_bpm_1 = {bpm_names[ref_bpm_idx_1]}, ref_bpm_2 = {bpm_names[ref_bpm_idx_2]}, target_bpm = {bpm_names[target_bpm_idx]}\nresolution estimate = $\\sigma/\\sqrt{{3}} = {resolution_est}$")
+    fig_resid.suptitle(f"3-BMP Analysis (direction = {fit_direction})")
+    fig_resid.savefig("3bpm_results.png")
 
     # Scatter plot positions for all windows
     fig_pos, ax_pos = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))

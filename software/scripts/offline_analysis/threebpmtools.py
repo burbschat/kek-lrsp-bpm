@@ -15,16 +15,16 @@ def fit_plane(x, y):
 
 
 # Fit 2d plane to predict the target pos from two reference positions.
-def fit_single_direction(reference_pos_1, reference_pos_2, target_pos, check_plot=False):
-    references = np.array([reference_pos_1, reference_pos_2])
-    target = np.array(target_pos)
+def fit_single_direction(pos_ref_1, pos_ref_2, pos_target, check_plot=False):
+    references = np.array([pos_ref_1, pos_ref_2])
+    target = np.array(pos_target)
 
     popt, pcov = fit_plane(references, target)
 
     if check_plot:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        color_values = np.arange(len(target_pos))
+        color_values = np.arange(len(pos_target))
         ax.scatter(references[0], references[1], target, c=color_values)
 
         def get_grid():
