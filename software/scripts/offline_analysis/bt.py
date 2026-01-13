@@ -266,12 +266,12 @@ def main():
                 if i == 0:
                     ts_first = ts
 
+                i += 1
+
                 # Process only a specified number of shots
                 if i >= process_num:
                     ts_last = ts
                     break
-
-                i += 1
 
         pos_all = np.array(pos_all)
 
