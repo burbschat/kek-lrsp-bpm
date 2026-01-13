@@ -55,7 +55,7 @@ def get_pulse_type(data, thr_pos=2000, thr_neg=-2000):
 
 # Hardcoded polynomial for BT. Use to check agains the more general
 # implementation used in the rogue application.
-def compute_pos_poly_bt(sums):
+def compute_pos_poly_bt_static(sums):
     V1, V2, V3, V4 = sums
     U = ((V1 + V4) - (V2 + V3)) / (V1 + V2 + V3 + V4)
     V = ((V1 + V2) - (V3 + V4)) / (V1 + V2 + V3 + V4)
@@ -95,6 +95,14 @@ def compute_pos_poly_bt(sums):
     return x, y
 
 
+# Use coefficients loaded from files just as used for online computation
+def compute_pos_poly_bt_online(sums, coeffx, coeffy, degree):
+    delsigx = ((sums[0] + sums[3]) - (sums[1] + sums[2])) / (sums[0] + sums[1] + sums[2] + sums[3])
+    delsigy = ((sums[0] + sums[1]) - (sums[2] + sums[3])) / (sums[0] + sums[1] + sums[2] + sums[3])
+    posx, posy = compute_pos_poly(sums, coeffx, coeffy, degree)
+    return posx, posy
+
+
 # Define a position that runs on exactly one shot at a time so we don't have to
 # worry about the whole dataset not fitting into memory.
 def process_shot(header, data, windows, coeffx, coeffy, degree, check_plot_ax=None):
@@ -111,8 +119,8 @@ def process_shot(header, data, windows, coeffx, coeffy, degree, check_plot_ax=No
         sums = np.abs(wav[:, lb:ub]).sum(axis=1)
         # Both methods appear to yield equivalent results. The hard coded
         # approach is much faster. Makes sense I guess.
-        # posx, posy = compute_pos_poly(sums, coeffx, coeffy, degree)
-        posx, posy = compute_pos_poly_bt(sums)
+        # posx, posy = compute_pos_poly_online(sums, coeffx, coeffy, degree)
+        posx, posy = compute_pos_poly_bt_static(sums)
         positions += [(posx, posy)]
 
     if check_plot_ax is not None:
