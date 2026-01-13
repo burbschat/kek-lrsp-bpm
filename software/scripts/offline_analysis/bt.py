@@ -307,8 +307,9 @@ def main():
     resid_fit_curve_vals = resid_dist.pdf(resid_fit_curve_lsp, resid_fit_res.params.loc, resid_fit_res.params.scale)
     # Compute resolution under assumption of equal resolutions by assuming the
     # width (sigma) of the residual distribution to eqal the root of the sum of
-    # three equal resolutions squared.
-    resolution_est = 1/np.sqrt(3) * resid_fit_res.params.scale
+    # three equal resolutions squared, however making sure to propagate the
+    # effect of parameters used in the extrapolation function.
+    resolution_est = resid_fit_res.params.scale / np.sqrt(1 + popt[0]**2 + popt[1]**2)
     # Unite results in a plot
     ax_resid.hist(pos_resid, bins=30, color="royalblue", density=True, label="meas. pos. - pred. pos.")
     ax_resid.plot(resid_fit_curve_lsp, resid_fit_curve_vals, color="red", label=f"Gaussian Fit: $\\sigma={resid_fit_res.params.scale}, \\mu={resid_fit_res.params.loc}$")
