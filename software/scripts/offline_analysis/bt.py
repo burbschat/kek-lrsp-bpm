@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from scipy import stats
+from threebpmtools import fit_single_direction
 
 # Add library paths (not sure how to import `setupLibPaths.py` here...)
 import pyrogue as pr
@@ -276,6 +277,15 @@ def main():
 
     if check_plot:
         fig_wav.savefig("waveforms_windows.png")
+
+    fit_direction = 0
+    fit_single_direction(
+        pos_all[:, 0, fit_direction],
+        pos_all[:, 1, fit_direction],
+        pos_all[:, 2, fit_direction],
+        check_plot=True,
+    )
+    exit()
 
     # Scatter plot positions for all windows
     fig_pos, ax_pos = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))
