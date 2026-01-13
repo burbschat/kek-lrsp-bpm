@@ -280,9 +280,9 @@ def main():
 
     # Fit to extrapolate positon at third from other two
     fit_direction = 0
-    ref_bpm_idx_1 = 0
-    ref_bpm_idx_2 = 1
-    target_bpm_idx = 2
+    ref_bpm_idx_1 = 3
+    ref_bpm_idx_2 = 5
+    target_bpm_idx = 7  # Skip one as we want the first bunch
     pos_ref_1 = pos_all[:, ref_bpm_idx_1, fit_direction]
     pos_ref_2 = pos_all[:, ref_bpm_idx_2, fit_direction]
     pos_target = pos_all[:, target_bpm_idx, fit_direction]
