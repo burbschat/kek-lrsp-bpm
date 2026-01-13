@@ -1,4 +1,5 @@
 import pyrogue.utilities.fileio as fileio
+from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -205,18 +206,20 @@ def plot_fit_gauss(pos_all, n_cols=3):
 def main():
     infile_path = "/mnt/data2/bt_rfsoc4x2_bpm_test_data/data_20251224_030907.dat"
 
-    windows_neg = [
-        (335, 450),
-        (625, 750),
-        (825, 910),
-        (925, 1050),
-        (1125, 1210),
-        (1215, 1335),
-        (1420, 1520),
-        (1530, 1650),
-        (1700, 1820),
-        (2030, 2150),
-    ]
+    # Maybe this is nonsense, if the dict passed here can change the order
+    # prior to being processed by the constructor...
+    windows_neg = OrderedDict({
+        "QMF2E_1M_1": (335, 450),
+        "QMD1E_2M_1": (625, 750),
+        "QMF2E_1M_2": (825, 910),
+        "QMF2E_2M_1": (925, 1050),
+        "QMD1E_2M_2": (1125, 1210),
+        "QMD1E_3M_1": (1215, 1335),
+        "QMF2E_2M_2": (1420, 1520),
+        "QMF3E_M_1": (1530, 1650),
+        "QMD1E_3M_2": (1700, 1820),
+        "QMF3E_M_2": (2030, 2150),
+    })
 
     coeffs_file_path = "../../config/SignalMaps/bt_fit_coeffs.json"
     print(f"Loading polynomial coefficients from {coeffs_file_path}")
@@ -231,7 +234,7 @@ def main():
         fig_wav, ax_wav = plt.subplots(1, 1, layout="constrained", figsize=(25, 8))
         ax_wav.grid()
         ax_wav.xaxis.set_major_locator(ticker.MultipleLocator(150))
-        for lb, ub in windows_neg:
+        for lb, ub in windows_neg.values():
             ax_wav.axvspan(lb, ub, color="royalblue", alpha=0.5)
 
     with fileio.FileReader(files=infile_path) as fd:
@@ -245,7 +248,15 @@ def main():
             else:
                 check_plot_ax = None
 
-            res = process_shot(header, data, windows_neg, coeffx, coeffy, degree, check_plot_ax=check_plot_ax)
+            res = process_shot(
+                header,
+                data,
+                list(windows_neg.values()),
+                coeffx,
+                coeffy,
+                degree,
+                check_plot_ax=check_plot_ax,
+            )
 
             if res is not None:
                 ts, pos_shot = res
