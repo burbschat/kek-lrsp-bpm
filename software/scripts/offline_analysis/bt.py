@@ -285,7 +285,6 @@ def main():
         pos_all[:, 2, fit_direction],
         check_plot=True,
     )
-    exit()
 
     # Scatter plot positions for all windows
     fig_pos, ax_pos = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))
