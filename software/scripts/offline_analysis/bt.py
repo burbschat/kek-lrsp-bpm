@@ -2,6 +2,7 @@ import pyrogue.utilities.fileio as fileio
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from scipy import stats
 
 # Add library paths (not sure how to import `setupLibPaths.py` here...)
@@ -100,7 +101,7 @@ def process_shot(header, data, windows, coeffx, coeffy, degree, check_plot_ax=No
     ts, wav = to_np_ts(header, data)
 
     pulse_type = get_pulse_type(wav[0, :])
-    # For now, only do positive pulses
+    # For now, only do positive pulses (=electron)
     if pulse_type < 0:
         return
 
@@ -219,7 +220,9 @@ def main():
     process_num = 5000
 
     if check_plot:
-        fig_wav, ax_wav = plt.subplots(1, 1, layout="constrained", figsize=(15, 8))
+        fig_wav, ax_wav = plt.subplots(1, 1, layout="constrained", figsize=(25, 8))
+        ax_wav.grid()
+        ax_wav.xaxis.set_major_locator(ticker.MultipleLocator(150))
         for lb, ub in windows_neg:
             ax_wav.axvspan(lb, ub, color="royalblue", alpha=0.5)
 
@@ -229,7 +232,7 @@ def main():
         i = 0
         for header, data in fd.records():
             # Only plot if enabled and only for the first n shots
-            if check_plot and i <= check_plot_num:
+            if check_plot and i < check_plot_num:
                 check_plot_ax = ax_wav
             else:
                 check_plot_ax = None
