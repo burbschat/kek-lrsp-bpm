@@ -315,7 +315,7 @@ def main():
     ax_resid.legend()
     bpm_names = list(windows_neg.keys())
     ax_resid.set_title(f"ref_bpm_1 = {bpm_names[ref_bpm_idx_1]}, ref_bpm_2 = {bpm_names[ref_bpm_idx_2]}, target_bpm = {bpm_names[target_bpm_idx]}\nresolution estimate = $\\sigma/\\sqrt{{3}} = {resolution_est}$")
-    fig_resid.suptitle(f"3-BMP Analysis (direction = {fit_direction})")
+    fig_resid.suptitle(f"3-BMP Analysis (direction = {fit_direction}, n = {process_num})")
     fig_resid.savefig("3bpm_results.png")
 
     # Scatter plot positions for all windows
