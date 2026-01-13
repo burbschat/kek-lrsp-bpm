@@ -7,6 +7,54 @@ import json
 import os
 
 
+def load_poly_coeffs(coeffs_file_path):
+    with open(coeffs_file_path, "r") as f:
+        coeffs_dict = json.load(f)
+
+    degree = coeffs_dict["degree"]
+
+    # Set x and y coeffs (assuming correct order!)
+    # coeffs_x = np.array(coeffs_dict["x"]["coeffs"])
+    # coeffs_y = np.array(coeffs_dict["y"]["coeffs"])
+
+    # Perform selective loading where coefficients not present in the file
+    # are assumed to be zero (required for BT data).
+
+    poly = PolynomialFeatures(degree, include_bias=True)
+    poly.fit(np.zeros((1, 2)))  # Dummy fit so I can obtain feature names...
+    coeff_names = list(poly.get_feature_names_out())  # Get coefficient names
+    n_terms = len(coeff_names)
+    # Start off with all zeros
+    coeffs = {
+        "x": np.zeros(n_terms),
+        "y": np.zeros(n_terms),
+    }
+
+    for direction in ["x", "y"]:
+        for coeff_name, coeff_value in zip(coeffs_dict[direction]["names"], coeffs_dict[direction]["coeffs"]):
+            # print(coeff_name, coeff_value)
+            idx = coeff_names.index(coeff_name)
+            # print(f"Inserting at {idx} ({direction})")
+            coeffs[direction][idx] = coeff_value
+
+    coeffs_x = coeffs["x"]
+    coeffs_y = coeffs["y"]
+
+    return coeffs_x, coeffs_y, degree
+
+
+def compute_pos_poly(delsigx, delsigy, coeffx, coeffy, degree):
+    # A little akward but make sure to use the same shape as fitting code to avoid confusion
+    v_meas = np.stack(([delsigx], [delsigy])).T
+
+    v_poly_meas = PolynomialFeatures(degree, include_bias=True).fit_transform(v_meas)
+
+    posx = np.inner(coeffx, v_poly_meas)[0]
+    posy = np.inner(coeffy, v_poly_meas)[0]
+
+    return posx, posy
+
+
 class SoftwarePosCalcProcessor(pr.DataReceiver):
     bobyqaErrors = {
         -1: "NPT is not in the required interval",
@@ -581,28 +629,23 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         # Get coefficient matrices
         coeffx = self.PolyCoeffX.get()
         coeffy = self.PolyCoeffY.get()
+        # Get polynomial degree
+        degree = self.PolyDegree.get()
 
-        # Variables for the position polynomial
-        # Cross-over electrode pairs
+        # TODO: Add attribute to select which one we use here
+        # Cross-over electrode pairs (injection BPM)
         # delsigx = (sums[0] - sums[2]) / (sums[0] + sums[2])
         # delsigy = (sums[1] - sums[3]) / (sums[1] + sums[3])
-        # Top/bottom, left/right electrode groups (this seems to work better)
-        delsigx = (sums[0] + sums[1] - sums[2] - sums[3]) / (sums[0] + sums[1] + sums[2] + sums[3])
-        delsigy = (sums[0] - sums[1] - sums[2] + sums[3]) / (sums[0] + sums[1] + sums[2] + sums[3])
+        # For BT: this?
+        delsigx = ((sums[0] + sums[3]) - (sums[1] + sums[2])) / (sums[0] + sums[1] + sums[2] + sums[3])
+        delsigy = ((sums[0] + sums[1]) - (sums[2] + sums[3])) / (sums[0] + sums[1] + sums[2] + sums[3])
 
-        # A little akward but make sure to use the same shape as fitting code to avoid confusion
-        v_meas = np.stack(([delsigx], [delsigy])).T
-
-        degree = self.PolyDegree.get()
-        v_poly_meas = PolynomialFeatures(degree, include_bias=True).fit_transform(v_meas)
-
-        posx = np.inner(coeffx, v_poly_meas)
-        posy = np.inner(coeffy, v_poly_meas)
+        posx, posy = compute_pos_poly(delsigx, delsigy, coeffx, coeffy, degree)
 
         # For some reason those MUST be python floats. Otherwise pydm scatter
         # plot on update does not work. Maybe a rogue problem where it does not
         # raise the updated flag? Maybe a problem on pydm side.
-        return float(posx[0]), float(posy[0])
+        return float(posx), float(posy)
 
     def _computePosFit(self, sums: np.array, enableMask: np.array):
         posx, posy = self._fitPosCpp(*sums, *enableMask)
@@ -650,40 +693,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
 
         coeffsFilePath = self.PolyCoeffsFilePath.get()
         self._log.info(f"Loading polynomial coefficients from {coeffsFilePath}")
-        with open(coeffsFilePath, "r") as f:
-            coeffs_dict = json.load(f)
-
-        degree = coeffs_dict["degree"]
-
-        # Set x and y coeffs (assuming correct order!)
-        # coeffs_x = np.array(coeffs_dict["x"]["coeffs"])
-        # coeffs_y = np.array(coeffs_dict["y"]["coeffs"])
-
-        # Perform selective loading where coefficients not present in the file
-        # are assumed to be zero (required for BT data).
-
-        poly = PolynomialFeatures(degree, include_bias=True)
-        poly.fit(np.zeros((1, 2)))  # Dummy fit so I can obtain feature names...
-        coeff_names = list(poly.get_feature_names_out())  # Get coefficient names
-        n_terms = len(coeff_names)
-        # Start off with all zeros
-        coeffs = {
-            "x": np.zeros(n_terms),
-            "y": np.zeros(n_terms),
-        }
-
-        for direction in ["x", "y"]:
-            for coeff_name, coeff_value in zip(coeffs_dict[direction]["names"], coeffs_dict[direction]["coeffs"]):
-                print(coeff_name, coeff_value)
-                idx = coeff_names.index(coeff_name)
-                print(f"Inserting at {idx} ({direction})")
-                coeffs[direction][idx] = coeff_value
-
-        coeffs_x = coeffs["x"]
-        coeffs_y = coeffs["y"]
-
-        print(coeffs_x)
-        print(coeffs_y)
+        coeffs_x, coeffs_y, degree = load_poly_coeffs(coeffsFilePath)
 
         # Set degree
         self.PolyDegree.set(degree)
