@@ -48,7 +48,6 @@ def get_pulse_type(data, thr_pos=2000, thr_neg=-2000):
     cross_pos_idx = (data > thr_pos).argmax()
     cross_neg_idx = (data < thr_neg).argmax()
 
-    # TODO: Not sure which is which...
     if cross_pos_idx > cross_neg_idx:
         return 1
     else:
@@ -107,13 +106,20 @@ def compute_pos_poly_bt_online(sums, coeffx, coeffy, degree):
 
 # Define a position that runs on exactly one shot at a time so we don't have to
 # worry about the whole dataset not fitting into memory.
-def process_shot(header, data, windows, coeffx, coeffy, degree, check_plot_ax=None):
+def process_shot(header, data, windows, coeffx, coeffy, degree, particle_type, check_plot_ax=None):
     ts, wav = to_np_ts(header, data)
 
     pulse_type = get_pulse_type(wav[0, :])
     # For now, only do positive pulses (=electron)
-    if pulse_type < 0:
-        return
+    if particle_type == "e":
+        if pulse_type < 0:
+            return
+    elif particle_type == "p":
+        if pulse_type > 0:
+            return
+    else:
+        print("Invalid particle type")
+        exit()
 
     positions = []
 
@@ -208,10 +214,11 @@ def plot_fit_gauss(pos_all, n_cols=3, bpm_names=None):
 
 def main():
     infile_path = "/mnt/data2/bt_rfsoc4x2_bpm_test_data/data_20251224_030907.dat"
+    particle_type = "p"
 
     # Maybe this is nonsense, if the dict passed here can change the order
     # prior to being processed by the constructor...
-    windows_neg = OrderedDict({
+    windows_electron = OrderedDict({
         "QMF2E_1M_1": (335, 450),
         "QMD1E_2M_1": (625, 750),
         "QMF2E_1M_2": (825, 910),
@@ -224,6 +231,38 @@ def main():
         "QMF3E_M_2": (2030, 2150),
     })
 
+    windows_positron = OrderedDict({
+        "QMD2P_2K_1": (220, 370),
+        "QMF1P_3K_1": (435, 610),
+        "QMD3P_K_1": (755, 920),
+        "QMF4P_K_1": (980, 1135),
+        "QMD5P_K_1": (1185, 1350),
+        "QMF6P_K_1": (1395, 1580),
+        # Could not find below ones in optics plots!
+        "QMD7P_K_1": (1625, 1800),
+        "QMF8P_K_1": (1855, 2035),
+    })
+
+    # Set BPMs to use for 3BPM analysis
+    # Electron opt A
+    # ref_bpm_name_1 = "QMF2E_2M_1"
+    # ref_bpm_name_2 = "QMD1E_3M_1"
+    # target_bpm_name = "QMF3E_M_1"
+    # Electron opt B
+    # ref_bpm_name_1 = "QMD1E_2M_1"
+    # ref_bpm_name_2 = "QMF2E_2M_1"
+    # target_bpm_name = "QMD1E_3M_1"
+
+    # Positron opt A
+    ref_bpm_name_1 = "QMF1P_3K_1"
+    ref_bpm_name_2 = "QMD3P_K_1"
+    target_bpm_name = "QMF4P_K_1"
+
+    if particle_type == "e":
+        windows = windows_electron
+    elif particle_type == "p":
+        windows = windows_positron
+
     coeffs_file_path = "../../config/SignalMaps/bt_fit_coeffs.json"
     print(f"Loading polynomial coefficients from {coeffs_file_path}")
     coeffx, coeffy, degree = load_poly_coeffs(coeffs_file_path)
@@ -231,13 +270,14 @@ def main():
     check_plot = True
     check_plot_num = 100
 
-    process_num = 5000
+    process_num = 3000
+    skip_num = 3000
 
     if check_plot:
         fig_wav, ax_wav = plt.subplots(1, 1, layout="constrained", figsize=(25, 8))
         ax_wav.grid()
         ax_wav.xaxis.set_major_locator(ticker.MultipleLocator(150))
-        for lb, ub in windows_neg.values():
+        for lb, ub in windows.values():
             ax_wav.axvspan(lb, ub, color="royalblue", alpha=0.5)
 
     with fileio.FileReader(files=infile_path) as fd:
@@ -246,7 +286,7 @@ def main():
         i = 0
         for header, data in fd.records():
             # Only plot if enabled and only for the first n shots
-            if check_plot and i < check_plot_num:
+            if check_plot and i < (skip_num + check_plot_num) and i > skip_num:
                 check_plot_ax = ax_wav
             else:
                 check_plot_ax = None
@@ -254,24 +294,27 @@ def main():
             res = process_shot(
                 header,
                 data,
-                list(windows_neg.values()),
+                list(windows.values()),
                 coeffx,
                 coeffy,
                 degree,
+                particle_type=particle_type,
                 check_plot_ax=check_plot_ax,
             )
 
             if res is not None:
+                i += 1
+                if i < skip_num:
+                    continue
+
                 ts, pos_shot = res
                 pos_all.append(pos_shot)
 
-                if i == 0:
+                if i == skip_num + 1:
                     ts_first = ts
 
-                i += 1
-
                 # Process only a specified number of shots
-                if i >= process_num:
+                if i >= (process_num + skip_num):
                     ts_last = ts
                     break
 
@@ -282,13 +325,7 @@ def main():
 
     # Fit to extrapolate positon at third from other two
     fit_direction = 0
-    ref_bpm_name_1 = "QMF2E_2M_1"
-    ref_bpm_name_2 = "QMD1E_3M_1"
-    target_bpm_name = "QMF3E_M_1"
-    # ref_bpm_name_1 = "QMD1E_2M_1"
-    # ref_bpm_name_2 = "QMF2E_2M_1"
-    # target_bpm_name = "QMD1E_3M_1"
-    bpm_names = list(windows_neg.keys())
+    bpm_names = list(windows.keys())
     ref_bpm_idx_1 = bpm_names.index(ref_bpm_name_1)
     ref_bpm_idx_2 = bpm_names.index(ref_bpm_name_2)
     target_bpm_idx = bpm_names.index(target_bpm_name)
