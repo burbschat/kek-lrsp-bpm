@@ -178,7 +178,7 @@ def scatter_hist(x, y, ax, ax_histx, ax_histy, label=None):
         )
 
 
-def plot_fit_gauss(pos_all, n_cols=3):
+def plot_fit_gauss(pos_all, n_cols=3, bpm_names=None):
     n_bpm = pos_all.shape[1]
     n_rows = int(np.ceil(n_bpm / n_cols))
 
@@ -200,6 +200,8 @@ def plot_fit_gauss(pos_all, n_cols=3):
         # Draw the scatter plot and marginals.
         scatter_hist(pos_all[:, i, 0], pos_all[:, i, 1], ax, ax_histx, ax_histy, label=f"Window {i}")
         # ax.scatter(pos_all[:, i, 0], pos_all[:, i, 1], marker="x", s=3, label=f"Window {i}")
+        if bpm_names is not None:
+            ax_histx.set_title(bpm_names[i])
 
     return fig
 
@@ -280,9 +282,16 @@ def main():
 
     # Fit to extrapolate positon at third from other two
     fit_direction = 0
-    ref_bpm_idx_1 = 3
-    ref_bpm_idx_2 = 5
-    target_bpm_idx = 7  # Skip one as we want the first bunch
+    ref_bpm_name_1 = "QMF2E_2M_1"
+    ref_bpm_name_2 = "QMD1E_3M_1"
+    target_bpm_name = "QMF3E_M_1"
+    # ref_bpm_name_1 = "QMD1E_2M_1"
+    # ref_bpm_name_2 = "QMF2E_2M_1"
+    # target_bpm_name = "QMD1E_3M_1"
+    bpm_names = list(windows_neg.keys())
+    ref_bpm_idx_1 = bpm_names.index(ref_bpm_name_1)
+    ref_bpm_idx_2 = bpm_names.index(ref_bpm_name_2)
+    target_bpm_idx = bpm_names.index(target_bpm_name)
     pos_ref_1 = pos_all[:, ref_bpm_idx_1, fit_direction]
     pos_ref_2 = pos_all[:, ref_bpm_idx_2, fit_direction]
     pos_target = pos_all[:, target_bpm_idx, fit_direction]
@@ -314,9 +323,9 @@ def main():
     ax_resid.hist(pos_resid, bins=30, color="royalblue", density=True, label="meas. pos. - pred. pos.")
     ax_resid.plot(resid_fit_curve_lsp, resid_fit_curve_vals, color="red", label=f"Gaussian Fit: $\\sigma={resid_fit_res.params.scale}, \\mu={resid_fit_res.params.loc}$")
     ax_resid.legend()
-    bpm_names = list(windows_neg.keys())
-    ax_resid.set_title(f"ref_bpm_1 = {bpm_names[ref_bpm_idx_1]}, ref_bpm_2 = {bpm_names[ref_bpm_idx_2]}, target_bpm = {bpm_names[target_bpm_idx]}\nresolution estimate = $\\sigma/\\sqrt{{3}} = {resolution_est}$")
-    fig_resid.suptitle(f"3-BMP Analysis (direction = {fit_direction}, n = {process_num})")
+    ax_resid.set_title(f"ref_bpm_1 = {ref_bpm_name_1}, ref_bpm_2 = {ref_bpm_name_2}, target_bpm = {target_bpm_name}\nresolution estimate = $\\sigma/\\sqrt{{1 + A^2 + B^2}} = {resolution_est}$")
+    direction_names = ["x", "y"]
+    fig_resid.suptitle(f"3-BMP Analysis (direction = {direction_names[fit_direction]}, n = {process_num})")
     fig_resid.savefig("3bpm_results.png")
 
     # Scatter plot positions for all windows
@@ -329,7 +338,7 @@ def main():
 
     fig_pos.savefig("pos_scatter.png")
 
-    fig_fit_gauss = plot_fit_gauss(pos_all)
+    fig_fit_gauss = plot_fit_gauss(pos_all, bpm_names=bpm_names)
     fig_fit_gauss.suptitle(f"{process_num} shots (recorded {ts_first} to {ts_last})")
     fig_fit_gauss.savefig("fit_gauss.png")
 
