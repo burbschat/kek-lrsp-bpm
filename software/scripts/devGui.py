@@ -93,8 +93,16 @@ if __name__ == "__main__":
         "--guiType",
         type     = str,
         required = False,
-        default  = 'PyDM',
+        default  = "PyDM",
         help     = "Sets the GUI type (PyDM or None)",
+    )
+
+    parser.add_argument(
+        "--bpmType",
+        type     = str,
+        required = True,  # Force explicit delcaration here!
+        default  = "bt",
+        help     = "Sets the bpm type (bt or injp)",
     )
 
     parser.add_argument(
@@ -123,6 +131,7 @@ if __name__ == "__main__":
 
     with kek_lrsp_bpm.Root(
         ip          = args.ip,
+        bpmType     = args.bpmType,
         pollEn      = args.pollEn,
         initRead    = args.initRead,
         defaultFile = args.defaultFile,

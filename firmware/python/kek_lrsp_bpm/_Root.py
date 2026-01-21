@@ -33,6 +33,7 @@ class Root(pr.Root):
     def __init__(
         self,
         ip="10.0.0.10",  # ETH Host Name (or IP address)
+        bpmType="bt",
         top_level="",
         defaultFile="",
         lmkConfig="config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt",
@@ -151,6 +152,7 @@ class Root(pr.Root):
             name="SoftwarePositionCalculation",
             sampleRate=sampleRate,
             signalMapIndexFile=self.signalMapsIndexFile,  # Default value, can be changed dynamically
+            polyVarsType=bpmType,  # bt or injp
             bufferDepth=2**8 * 16,  # TODO: Make dynamic!
             nWindows=5,
             hidden=False,

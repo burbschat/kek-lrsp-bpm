@@ -55,6 +55,19 @@ def compute_pos_poly(delsigx, delsigy, coeffx, coeffy, degree):
     return posx, posy
 
 
+def getDelsigInjPoint(sums):
+    # Cross-over electrode pairs (injection BPM)
+    delsigx = (sums[0] - sums[2]) / (sums[0] + sums[2])
+    delsigy = (sums[1] - sums[3]) / (sums[1] + sums[3])
+    return delsigx, delsigy
+
+
+def getDelsigInjBT(sums):
+    delsigx = ((sums[0] + sums[3]) - (sums[1] + sums[2])) / (sums[0] + sums[1] + sums[2] + sums[3])
+    delsigy = ((sums[0] + sums[1]) - (sums[2] + sums[3])) / (sums[0] + sums[1] + sums[2] + sums[3])
+    return delsigx, delsigy
+
+
 class SoftwarePosCalcProcessor(pr.DataReceiver):
     bobyqaErrors = {
         -1: "NPT is not in the required interval",
@@ -68,6 +81,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
     def __init__(
         self,
         signalMapIndexFile,
+        polyVarsType,  # bt or injp
         *args,
         nWindows=2,
         hardDisablePoly=False,
@@ -87,6 +101,13 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         self.Data.addToGroup("NoServe")
         self.Data.addToGroup("NoStream")
         self.Data.addToGroup("NoStatus")
+
+        if polyVarsType == "bt":
+            self.getDelsig = getDelsigInjBT
+        elif polyVarsType == "injp":
+            self.getDelsig = getDelsigInjPoint
+        else:
+            raise KeyError(f"Invalid polynomial variables type: {polyVarsType}. Choose 'bt' or 'injp'.")
 
         # Configurable variables
         self._bufferDepth = bufferDepth
@@ -633,12 +654,11 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         degree = self.PolyDegree.get()
 
         # TODO: Add attribute to select which one we use here
-        # Cross-over electrode pairs (injection BPM)
-        # delsigx = (sums[0] - sums[2]) / (sums[0] + sums[2])
-        # delsigy = (sums[1] - sums[3]) / (sums[1] + sums[3])
         # For BT: this?
         delsigx = ((sums[0] + sums[3]) - (sums[1] + sums[2])) / (sums[0] + sums[1] + sums[2] + sums[3])
         delsigy = ((sums[0] + sums[1]) - (sums[2] + sums[3])) / (sums[0] + sums[1] + sums[2] + sums[3])
+
+        delsigx, delsigy = self.getDelsig(sums)
 
         posx, posy = compute_pos_poly(delsigx, delsigy, coeffx, coeffy, degree)
 
