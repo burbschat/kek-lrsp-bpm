@@ -24,25 +24,3 @@ set_property -dict { PACKAGE_PIN AA34 IOSTANDARD LVDS } [get_ports { qsfpRefClkN
 # Same as above but routed to ordinary FPGA clock input
 set_property -dict { PACKAGE_PIN AL17 IOSTANDARD LVDS } [get_ports { qsfpSysClkP }]
 set_property -dict { PACKAGE_PIN AM17 IOSTANDARD LVDS } [get_ports { qsfpSysClkN }]
-
-# TX
-# Maybe must use LOC instead of PACKAGE_PIN here?
-set_property PACKAGE_PIN Y35 [get_ports { qsfpGtTxP[0] }]
-set_property PACKAGE_PIN Y36 [get_ports { qsfpGtTxN[0] }]
-set_property PACKAGE_PIN V35 [get_ports { qsfpGtTxP[2] }]
-set_property PACKAGE_PIN V36 [get_ports { qsfpGtTxN[2] }]
-set_property PACKAGE_PIN T35 [get_ports { qsfpGtTxP[1] }]
-set_property PACKAGE_PIN T36 [get_ports { qsfpGtTxN[1] }]
-set_property PACKAGE_PIN R33 [get_ports { qsfpGtTxP[3] }]
-set_property PACKAGE_PIN R34 [get_ports { qsfpGtTxN[3] }]
-
-# RX
-# Maybe must use LOC instead of PACKAGE_PIN here?
-set_property PACKAGE_PIN AA38 [get_ports { qsfpGtRxP[3] }]
-set_property PACKAGE_PIN AA39 [get_ports { qsfpGtRxN[3] }]
-set_property PACKAGE_PIN W38 [get_ports { qsfpGtRxP[1] }]
-set_property PACKAGE_PIN W39 [get_ports { qsfpGtRxN[1] }]
-set_property PACKAGE_PIN U38 [get_ports { qsfpGtRxP[2] }]
-set_property PACKAGE_PIN U39 [get_ports { qsfpGtRxN[2] }]
-set_property PACKAGE_PIN R38 [get_ports { qsfpGtRxP[0] }]
-set_property PACKAGE_PIN R39 [get_ports { qsfpGtRxN[0] }]
