@@ -26,6 +26,9 @@ use work.AppPkg.all;
 library axi_soc_ultra_plus_core;
 use axi_soc_ultra_plus_core.AxiSocUltraPlusPkg.all;
 
+library unisim;
+use unisim.vcomponents.all;
+
 entity KekLrspBpmBt is
    generic (
       TPD_G        : time := 1 ns;
@@ -53,7 +56,17 @@ entity KekLrspBpmBt is
       plSysRefN   : in    sl;
       -- SYSMON Ports
       vPIn        : in    sl;
-      vNIn        : in    sl);
+      vNIn        : in    sl;
+      -- QSFP ports
+      qsfpRefClkP : in    sl;           -- On dedicated GT ref clock pins
+      qsfpRefClkN : in    sl;
+      qsfpSysClkP : in    sl;           -- On ordinary clock pins
+      qsfpSysClkN : in    sl;
+      qsfpGtTxP   : out   slv(3 downto 0);
+      qsfpGtTxN   : out   slv(3 downto 0);
+      qsfpGtRxP   : in    slv(3 downto 0);
+      qsfpGtRxN   : in    slv(3 downto 0)
+      );
 end KekLrspBpmBt;
 
 architecture top_level of KekLrspBpmBt is
@@ -61,8 +74,9 @@ architecture top_level of KekLrspBpmBt is
    constant HW_INDEX_C   : natural := 0;
    constant RFDC_INDEX_C : natural := 1;
    constant APP_INDEX_C  : natural := 2;
+   constant GT_INDEX_C   : natural := 3;
 
-   constant NUM_AXIL_MASTERS_C : positive := 3;
+   constant NUM_AXIL_MASTERS_C : positive := 4;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, APP_ADDR_OFFSET_C, 31, 28);
 
@@ -90,6 +104,11 @@ architecture top_level of KekLrspBpmBt is
    signal dspRst : sl;
    signal dspAdc : Slv256Array(3 downto 0);
    signal dspDac : Slv256Array(1 downto 0);
+
+   signal qsfpRefClk     : sl;
+   signal qsfpRefClkCopy : sl;
+
+   signal qsfpSysClk : sl;
 
 begin
 
@@ -192,6 +211,56 @@ begin
          axilWriteSlave  => axilWriteSlaves(RFDC_INDEX_C),
          axilReadMaster  => axilReadMasters(RFDC_INDEX_C),
          axilReadSlave   => axilReadSlaves(RFDC_INDEX_C));
+
+   -- GTY Transceiver reference clock
+   U_qsfpRefClk : IBUFDS_GTE4           -- For US: GTE3, for US+: GTE4
+      generic map (
+         REFCLK_EN_TX_PATH  => '0',  -- Reserved. This attribute must always be set to 1'b0.
+         REFCLK_HROW_CK_SEL => "00",    -- 2'b00: ODIV2 = O
+         REFCLK_ICNTL_RX    => "00")
+      port map (
+         I     => qsfpRefClkP,
+         IB    => qsfpRefClkN,
+         CEB   => '0',                  -- Active low clock enable signal
+         ODIV2 => qsfpRefClkCopy,
+         O     => qsfpRefClk);
+
+   -- Transceiver reference clock. This should always be active and stable,
+   -- which it should be as the input is referenced to a free running
+   -- oscillator on the RFSoC 4x2 board (IC32).
+   U_qsfpSysClk : IBUFDS
+      port map (
+         I  => qsfpSysClkP,
+         IB => qsfpSysClkN,
+         O  => qsfpSysClk);
+
+   U_EvrGty : entity work.EvrGty
+      generic map(
+         TPD_G              => TPD_G,
+         STABLE_CLK_F_HZ    => 156250000,  -- 156.250 MHz
+         TX_MIRROR_ENABLE_G => true
+         )
+      port map(
+         stableClk       => qsfpSysClk,
+         stableRst       => '0',
+         gtRefClk        => qsfpRefClk,
+         evrGtTxP        => qsfpGtTxP(0),
+         evrGtTxN        => qsfpGtTxN(0),
+         evrGtRxP        => qsfpGtRxP(0),
+         evrGtRxN        => qsfpGtRxN(0),
+         evrTxResetAsync => '0',
+         evrTxResetDone  => open,
+         evrTxUsrClk     => open,
+         evrRxResetAsync => '0',
+         evrRxResetDone  => open,
+         evrRxUsrClk     => open,
+         axilClk         => axilClk,
+         axilRst         => axilRst,
+         axilReadMaster  => axilReadMasters(GT_INDEX_C),
+         axilReadSlave   => axilReadSlaves(GT_INDEX_C),
+         axilWriteMaster => axilWriteMasters(GT_INDEX_C),
+         axilWriteSlave  => axilWriteSlaves(GT_INDEX_C)
+         );
 
    --------------
    -- Application

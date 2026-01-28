@@ -44,12 +44,12 @@ entity EvrGty is
         evrTxResetAsync : in  sl;
         evrTxResetDone  : out sl;
         evrTxUsrClk     : out sl;  -- user clock = recovered clock (tx data sync. to this)
-        evrTxMmcmLocked : in  sl;
+        -- evrTxMmcmLocked : in  sl;
         -- Rx clocking
         evrRxResetAsync : in  sl;
         evrRxResetDone  : out sl;
         evrRxUsrClk     : out sl;  -- user clock  = recovered clock (rx data sync. to this)
-        evrRxMmcmLocked : in  sl;
+        -- evrRxMmcmLocked : in  sl;
         -- AXI-Lite DRP interface
         axilClk         : in  sl                     := '0';
         axilRst         : in  sl                     := '0';
@@ -166,7 +166,8 @@ begin
             gtTxN           => evrGtTxN,
             rxReset         => gtRxUserResetSync,
             rxUsrClk        => rxUsrClk,
-            rxUsrClkActive  => evrRxMmcmLocked,  -- Put MMCM in the module locking on gtRefClk?!
+            -- rxUsrClkActive  => evrRxMmcmLocked,  -- Put MMCM in the module locking on gtRefClk?!
+            rxUsrClkActive  => rxResetDone,  -- Assume clock stable if reset done
             rxResetDone     => rxResetDone,
             rxData          => rxData,  -- Not yet connected to anything!
             rxDataK         => rxDataK,
@@ -176,14 +177,15 @@ begin
             rxOutClk        => rxOutClk,
             txReset         => gtTxUserResetSync,
             txUsrClk        => txUsrClk,
-            txUsrClkActive  => evrTxMmcmLocked,
+            -- txUsrClkActive  => evrTxMmcmLocked,
+            txUsrClkActive  => txResetDone,   -- Assume clock stable if reset done
             txResetDone     => txResetDone,
             txData          => txData,  -- Not yet connected to anything!
             txDataK         => txDataK,
             txPolarity      => TX_POLARITY_G,
             txOutClk        => txOutClk,
             -- Loopback makes no sense as only TX->RX is possible and we do not
-            -- actually generate anything to trasnmit, only mirror.
+            -- actually generate anything to trasnmit, only mirror RX->TX.
             loopback        => "000",  -- "000" -> normal operation (see PG182)
             axilClk         => axilClk,
             axilRst         => axilRst,
