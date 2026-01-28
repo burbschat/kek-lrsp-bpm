@@ -110,12 +110,39 @@ architecture top_level of KekLrspBpmBt is
 
    signal qsfpSysClk : sl;
 
+   signal xvcClk156 : sl;
+   signal xvcRst156 : sl;
+
 begin
 
    userLed(0) <= not(axilRst);
    userLed(1) <= not(dmaRst);
    userLed(2) <= not(dspRst);
    userLed(3) <= '1';
+
+   -- TODO: Consider using a PLL (MMCM) for qsfpSysClk as well?
+   U_XVC_PLL : entity surf.ClockManagerUltraScale
+      generic map(
+         TPD_G              => TPD_G,
+         TYPE_G             => "MMCM",
+         INPUT_BUFG_G       => true,
+         FB_BUFG_G          => true,
+         RST_IN_POLARITY_G  => '1',
+         NUM_CLOCKS_G       => 1,
+         -- MMCM attributes
+         BANDWIDTH_G        => "OPTIMIZED",
+         CLKIN_PERIOD_G     => 4.0,     -- 250MHz
+         DIVCLK_DIVIDE_G    => 10,      -- 25.0MHz = 250MHz/10
+         CLKFBOUT_MULT_F_G  => 48.4375,  -- 1210.9375MHz = 48.4375 x 25.0MHz (see DS925 for vco range)
+         CLKOUT0_DIVIDE_F_G => 7.75)    -- 156.25MHz = 1210.9375MHz/7.75
+      port map(
+         -- Clock Input
+         clkIn     => axilClk,  -- In this firmware axiClk should be 250MHz
+         rstIn     => axilRst,
+         -- Clock Outputs
+         clkOut(0) => xvcClk156,
+         -- Reset Outputs
+         rstOut(0) => xvcRst156);
 
    -----------------------
    -- Common Platform Core
@@ -296,5 +323,24 @@ begin
    ----------------------
    dmaIbMasters(1) <= dmaObMasters(1);
    dmaObSlaves(1)  <= dmaIbSlaves(1);
+
+   -------------
+   -- XVC Module
+   -------------
+   U_XVC : entity surf.DmaXvcWrapper
+      generic map (
+         TPD_G             => TPD_G,
+         DMA_AXIS_CONFIG_G => DMA_AXIS_CONFIG_C)
+      port map (
+         -- 156.25MHz XVC Clock/Reset (xvcClk156 domain)
+         xvcClk156   => xvcClk156,
+         xvcRst156   => xvcRst156,
+         -- DMA Interface (dmaClk domain)
+         dmaClk      => dmaClk,
+         dmaRst      => dmaRst,
+         dmaObMaster => dmaObMasters(2),
+         dmaObSlave  => dmaObSlaves(2),
+         dmaIbMaster => dmaIbMasters(2),
+         dmaIbSlave  => dmaIbSlaves(2));
 
 end top_level;
