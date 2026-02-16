@@ -155,7 +155,7 @@
         "RX_CC_VAL_1_3": [ { "value": "00000000", "resolve_type": "user", "enabled": false, "usage": "all" } ],
         "RX_CC_K_1_3": [ { "value": "false", "resolve_type": "user", "format": "bool", "enabled": false, "usage": "all" } ],
         "RX_CC_DISP_1_3": [ { "value": "false", "resolve_type": "user", "format": "bool", "enabled": false, "usage": "all" } ],
-        "ENABLE_OPTIONAL_PORTS": [ { "value": "drpaddr_in drpclk_in drpdi_in drpen_in drpwe_in loopback_in rxpolarity_in txpolarity_in drpdo_out drprdy_out", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
+        "ENABLE_OPTIONAL_PORTS": [ { "value": "drpaddr_in drpclk_in drpdi_in drpen_in drpwe_in loopback_in rxpolarity_in txpolarity_in drpdo_out drprdy_out qpll1lock_out", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
         "RX_REFCLK_SOURCE": [ { "value": "", "resolve_type": "user", "usage": "all" } ],
         "TX_REFCLK_SOURCE": [ { "value": "", "resolve_type": "user", "usage": "all" } ],
         "RX_RECCLK_OUTPUT": [ { "value": "", "resolve_type": "user", "usage": "all" } ],
@@ -170,7 +170,7 @@
         "PRESET": [ { "value": "None", "resolve_type": "user", "usage": "all" } ],
         "INTERNAL_PRESET": [ { "value": "None", "resolve_type": "user", "usage": "all" } ],
         "INTERNAL_PORT_USAGE_UPDATED": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
-        "INTERNAL_PORT_ENABLEMENT_UPDATED": [ { "value": "24", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
+        "INTERNAL_PORT_ENABLEMENT_UPDATED": [ { "value": "25", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_CHANNEL_SITES_UPDATED": [ { "value": "5", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_CHANNEL_COLUMN_LOC_MAX": [ { "value": "96", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_RX_COMMA_PRESET_UPDATE": [ { "value": "8", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
@@ -861,6 +861,7 @@
         "gtwiz_userdata_tx_in": [ { "direction": "in", "size_left": "15", "size_right": "0", "driver_value": "0" } ],
         "gtwiz_userdata_rx_out": [ { "direction": "out", "size_left": "15", "size_right": "0", "driver_value": "0" } ],
         "gtrefclk01_in": [ { "direction": "in", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
+        "qpll1lock_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
         "qpll1outclk_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
         "qpll1outrefclk_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
         "drpaddr_in": [ { "direction": "in", "size_left": "9", "size_right": "0", "driver_value": "0x000" } ],
@@ -905,5 +906,5 @@
       }
     }
   },
-  "checksum": "ba02a979"
+  "checksum": "ba43d488"
 }

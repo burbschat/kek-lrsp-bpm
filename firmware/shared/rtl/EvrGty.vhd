@@ -34,6 +34,7 @@ entity EvrGty is
         -- GT Clocking
         stableClk       : in  sl;       -- GT needs a stable clock to "boot up"
         stableRst       : in  sl;
+        resetGt         : in  sl;
         gtRefClk        : in  sl;
         -- GT Serial IO
         evrGtTxP        : out sl;
@@ -62,6 +63,9 @@ end entity EvrGty;
 
 architecture mapping of EvrGty is
 
+    signal resetGtSync : sl;
+    signal gtHardReset : sl;
+
     signal gtRxUserResetSync : sl;
     signal gtTxUserResetSync : sl;
 
@@ -74,8 +78,14 @@ architecture mapping of EvrGty is
     signal rxOutClkBuff : sl;
     signal txOutClkBuff : sl;
 
-    signal rxUsrClk : sl;
-    signal txUsrClk : sl;
+    signal rxUsrClk           : sl;
+    signal txUsrClk           : sl;
+    signal rxUsrClkMmcm       : sl;     -- MMCM buffered clock
+    signal txUsrClkMmcm       : sl;
+    signal rxUsrClkMmcmLocked : sl;     -- MMCM locked signal
+    signal txUsrClkMmcmLocked : sl;
+
+    signal qpll1Locked : sl;            -- Locked signal of QPLL1 in GT IP Core
 
     -- TODO: Use those as input to the decoder
     signal rxData    : slv(15 downto 0);
@@ -86,10 +96,56 @@ architecture mapping of EvrGty is
     signal txData  : slv(15 downto 0);
     signal txDataK : slv(1 downto 0);
 
+    attribute keep       : string;
+    attribute mark_debug : string;
+
+    attribute keep of qpll1Locked        : signal is "true";
+    attribute keep of resetGtSync        : signal is "true";
+    attribute keep of gtHardReset        : signal is "true";
+    attribute keep of rxData             : signal is "true";
+    attribute keep of rxDataK            : signal is "true";
+    attribute keep of rxUsrClk           : signal is "true";
+    attribute keep of rxUsrClkMmcmLocked : signal is "true";
+    attribute keep of rxResetDone        : signal is "true";
+    attribute keep of rxDispErr          : signal is "true";
+    attribute keep of rxDecErr           : signal is "true";
+    attribute keep of txData             : signal is "true";
+    attribute keep of txDataK            : signal is "true";
+    attribute keep of txUsrClk           : signal is "true";
+    attribute keep of txUsrClkMmcmLocked : signal is "true";
+    attribute keep of txResetDone        : signal is "true";
+
+    attribute mark_debug of qpll1Locked        : signal is "true";
+    attribute mark_debug of resetGtSync        : signal is "true";
+    attribute mark_debug of gtHardReset        : signal is "true";
+    attribute mark_debug of rxData             : signal is "true";
+    attribute mark_debug of rxDataK            : signal is "true";
+    attribute mark_debug of rxUsrClk           : signal is "true";
+    attribute mark_debug of rxUsrClkMmcmLocked : signal is "true";
+    attribute mark_debug of rxResetDone        : signal is "true";
+    attribute mark_debug of rxDispErr          : signal is "true";
+    attribute mark_debug of rxDecErr           : signal is "true";
+    attribute mark_debug of txData             : signal is "true";
+    attribute mark_debug of txDataK            : signal is "true";
+    attribute mark_debug of txUsrClk           : signal is "true";
+    attribute mark_debug of txUsrClkMmcmLocked : signal is "true";
+    attribute mark_debug of txResetDone        : signal is "true";
+
 begin
 
     evrRxResetDone <= rxResetDone;
     evrTxResetDone <= txResetDone;
+
+    gtHardReset <= resetGtSync or stableRst;
+
+    U_RstGtSync : entity surf.PwrUpRst
+        generic map (
+            TPD_G      => TPD_G,
+            DURATION_G => STABLE_CLK_F_HZ * 1)  -- 1 sec pulse
+        port map (
+            arst   => resetGt,                  -- [in]
+            clk    => stableClk,                -- [in]
+            rstOut => resetGtSync);             -- [out]
 
     -- Sync evrRxResetAsync to stableClk and tie to gtRxUserResetSync
     U_RstSync_Rx : entity surf.PwrUpRst
@@ -140,14 +196,64 @@ begin
 
     -- Output (recovered and buffered) signal clocks. Event codes/shared bus
     -- also synchronous to this clock.
-    evrRxUsrClk <= rxUsrClk;
-    evrTxUsrClk <= txUsrClk;
+    evrRxUsrClk <= rxUsrClkMmcm;
+    evrTxUsrClk <= txUsrClkMmcm;
 
     U_TxMirrorGen : if TX_MIRROR_ENABLE_G generate
         -- Mirror rx to TX 'as is' for to allow for event receiver daisy chaining
         txData  <= rxData;
         txDataK <= rxDataK;             -- Don't forget the K character flags!
     end generate U_TxMirrorGen;
+
+
+    -- MMCM (PLL sufficient?) to detect stable user clock of transceiver
+    U_RXUSRCLK_PLL : entity surf.ClockManagerUltraScale
+        generic map(
+            TPD_G              => TPD_G,
+            TYPE_G             => "MMCM",
+            INPUT_BUFG_G       => true,
+            FB_BUFG_G          => true,
+            RST_IN_POLARITY_G  => '1',
+            NUM_CLOCKS_G       => 1,
+            -- MMCM attributes
+            BANDWIDTH_G        => "OPTIMIZED",
+            CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
+            DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
+            CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
+            CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
+        port map(
+            -- Clock Input
+            clkIn     => rxUsrClk,
+            rstIn     => gtHardReset,
+            -- Clock Outputs
+            locked    => rxUsrClkMmcmLocked,
+            clkOut(0) => rxUsrClkMmcm,
+            -- Reset Outputs
+            rstOut(0) => open);
+
+    U_TXUSRCLK_PLL : entity surf.ClockManagerUltraScale
+        generic map(
+            TPD_G              => TPD_G,
+            TYPE_G             => "MMCM",
+            INPUT_BUFG_G       => true,
+            FB_BUFG_G          => true,
+            RST_IN_POLARITY_G  => '1',
+            NUM_CLOCKS_G       => 1,
+            -- MMCM attributes
+            BANDWIDTH_G        => "OPTIMIZED",
+            CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
+            DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
+            CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
+            CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
+        port map(
+            -- Clock Input
+            clkIn     => txUsrClk,
+            rstIn     => gtHardReset,
+            -- Clock Outputs
+            locked    => txUsrClkMmcmLocked,
+            clkOut(0) => txUsrClkMmcm,
+            -- Reset Outputs
+            rstOut(0) => open);
 
     --------------------------
     -- Wrapper for GTY IP core
@@ -158,16 +264,20 @@ begin
             )
         port map(
             stableClk       => stableClk,
-            stableRst       => stableRst,
+            stableRst       => gtHardReset,
+            qpll1Lock       => qpll1Locked,
             gtRefClk        => gtRefClk,
             gtRxP           => evrGtRxP,
             gtRxN           => evrGtRxN,
             gtTxP           => evrGtTxP,
             gtTxN           => evrGtTxN,
             rxReset         => gtRxUserResetSync,
-            rxUsrClk        => rxUsrClk,
+            rxUsrClk        => rxUsrClkMmcm,  -- Probably does not matter if rxUsrClkMmcm or rxUsrClk directly?
+            -- TODO: I think we must assert UsrClkActive to complete reset
+            -- procedure, i.e. ResetDone will never be asserted before
+            -- UsrClkActive is asserted.
             -- rxUsrClkActive  => evrRxMmcmLocked,  -- Put MMCM in the module locking on gtRefClk?!
-            rxUsrClkActive  => rxResetDone,  -- Assume clock stable if reset done
+            rxUsrClkActive  => rxUsrClkMmcmLocked and qpll1Locked,  -- Assume clock stable if MMCM locked
             rxResetDone     => rxResetDone,
             rxData          => rxData,  -- Not yet connected to anything!
             rxDataK         => rxDataK,
@@ -176,9 +286,12 @@ begin
             rxPolarity      => RX_POLARITY_G,
             rxOutClk        => rxOutClk,
             txReset         => gtTxUserResetSync,
-            txUsrClk        => txUsrClk,
+            txUsrClk        => txUsrClkMmcm,
+            -- TODO: I think we must assert UsrClkActive to complete reset
+            -- procedure, i.e. ResetDone will never be asserted before
+            -- UsrClkActive is asserted.
             -- txUsrClkActive  => evrTxMmcmLocked,
-            txUsrClkActive  => txResetDone,   -- Assume clock stable if reset done
+            txUsrClkActive  => txUsrClkMmcmLocked and qpll1Locked,  -- Assume clock stable if reset done
             txResetDone     => txResetDone,
             txData          => txData,  -- Not yet connected to anything!
             txDataK         => txDataK,
@@ -186,7 +299,7 @@ begin
             txOutClk        => txOutClk,
             -- Loopback makes no sense as only TX->RX is possible and we do not
             -- actually generate anything to trasnmit, only mirror RX->TX.
-            loopback        => "000",  -- "000" -> normal operation (see PG182)
+            loopback        => "001",  -- "000" -> normal operation (see PG182)
             axilClk         => axilClk,
             axilRst         => axilRst,
             axilReadMaster  => axilReadMaster,

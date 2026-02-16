@@ -9,12 +9,22 @@
 ##############################################################################
 
 create_clock -name plClkP -period  2.0 [get_ports {plClkP}]
+create_clock -name qsfpRefClkP -period 6.4 [get_ports {qsfpRefClkP}]
+create_clock -name qsfpSysClkP -period 6.4 [get_ports {qsfpSysClkP}]
+
+# Constrain PS output clock?
+# create_clock -name pl_clk0_250MHz -period 4.0 [get_pins AxiSocUltraPlusCpuCore/zynq_ultra_ps_e_0/pl_clk0]
 
 set_clock_groups -asynchronous \
     -group [get_clocks -of_objects [get_pins U_Core/REAL_CPU.U_CPU/U_Pll/PllGen.U_Pll/CLKOUT0]] \
     -group [get_clocks -of_objects [get_pins U_Core/REAL_CPU.U_CPU/U_Pll/PllGen.U_Pll/CLKOUT1]] \
     -group [get_clocks -of_objects [get_pins U_RFDC/U_Pll/PllGen.U_Pll/CLKOUT0]] \
-    -group [get_clocks -of_objects [get_pins U_RFDC/U_Pll/PllGen.U_Pll/CLKOUT1]]
+    -group [get_clocks -of_objects [get_pins U_RFDC/U_Pll/PllGen.U_Pll/CLKOUT1]] \
+    -group [get_clocks -include_generated_clocks qsfpSysClkP] \
+    -group [get_clocks -include_generated_clocks -of_objects [get_pins U_EvrGty/U_EvrGtyCoreWrapper/rxOutClk]] \
+    -group [get_clocks -include_generated_clocks -of_objects [get_pins U_EvrGty/U_EvrGtyCoreWrapper/txOutClk]]
+    # -group [get_clocks -of_objects [get_pins U_XVC_PLL/MmcmGen.U_Mmcm/CLKOUT0]] \
+    # -group [get_clocks qsfpRefClkP] \
 
 # QSFP Port (Bank 128)
 

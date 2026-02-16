@@ -11,8 +11,9 @@ entity EvrGtyCoreWrapper is
         TPD_G : time := 1 ns);
 
     port (
-        stableClk : in sl;
-        stableRst : in sl;
+        stableClk : in  sl;
+        stableRst : in  sl;
+        qpll1Lock : out sl;
 
         -- GTY FPGA IO
         gtRefClk : in  sl;  -- Use Dedicated clock pin for transceiver
@@ -83,6 +84,7 @@ architecture mapping of EvrGtyCoreWrapper is
             gtwiz_userdata_tx_in               : in  std_logic_vector(15 downto 0);
             gtwiz_userdata_rx_out              : out std_logic_vector(15 downto 0);
             gtrefclk01_in                      : in  std_logic_vector(0 downto 0);
+            qpll1lock_out                      : out std_logic_vector(0 downto 0);
             qpll1outclk_out                    : out std_logic_vector(0 downto 0);
             qpll1outrefclk_out                 : out std_logic_vector(0 downto 0);
             drpaddr_in                         : in  std_logic_vector(9 downto 0);
@@ -181,6 +183,7 @@ begin
             drprdy_out(0) => drpRdy,
 
             gtrefclk01_in(0)   => gtRefClk,
+            qpll1lock_out(0)   => qpll1Lock,
             qpll1outclk_out    => open,
             qpll1outrefclk_out => open,
 

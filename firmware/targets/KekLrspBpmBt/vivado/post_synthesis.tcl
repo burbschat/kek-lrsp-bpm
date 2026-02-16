@@ -18,7 +18,7 @@ source $::env(RUCKUS_PROC_TCL)
 # Bypass the debug chipscope generation via return cmd
 # ELSE ... comment out the return to include chipscope
 ######################################################
-return
+# return
 
 ############################
 ## Open the synthesis design
@@ -43,52 +43,56 @@ set_property C_DATA_DEPTH 8192 [get_debug_cores ${ilaName}]
 #################################
 ## Set the clock for the ILA core
 #################################
-SetDebugCoreClk ${ilaName} {U_Hardware/U_I2C_CLK104/axilClk}
+# TODO: I guess this really should be the axi clock but this gives timing
+# errors... Try to somehow use that clock I guess? Maybe it must be the axi
+# clock...
+SetDebugCoreClk ${ilaName} {U_XVC/xvcClk156}
+# SetDebugCoreClk ${ilaName} {U_App/axilClk}
+# SetDebugCoreClk ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClk}
 
 #######################
 ## Set the debug Probes
 #######################
 
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilReadMaster[araddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[awaddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[wdata][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][rdata][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][rresp][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][bresp][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][i2cAddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regAddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regAddrSize][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regDataSize][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regWrData][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[sdoMuxSel][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[state][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regFailCode][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regRdData][*]}
+ConfigProbe ${ilaName} {U_App/axilClk}
+ConfigProbe ${ilaName} {U_App/axilRst}
 
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilReadMaster[arvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilReadMaster[rready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilRst}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[awvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[bready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[wvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/i2co[scloen]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/i2co[sdaoen]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][arready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][rvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][awready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][bvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][wready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][busReq]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][endianness]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regAddrSkip]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regOp]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regReq]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][repeatStart]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][tenbit]}
-# ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/readEnable}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regAck]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regFail]}
-# ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/writeEnable}
+# These clocks should all be the same...
+# Sometimes not possible to fulfill timing constraints when connecting these
+# clocks to the ILA, so leave them out for now...
+# ConfigProbe ${ilaName} {U_XVC/xvcClk156}
+# ConfigProbe ${ilaName} {U_EvrGty/stableClk}
+# ConfigProbe ${ilaName} {U_EvrGty/gtRefClk}
+# ConfigProbe ${ilaName} {U_qsfpSysClk/O}
+
+ConfigProbe ${ilaName} {U_EvrGty/rxData[*]}
+ConfigProbe ${ilaName} {U_EvrGty/rxDataK[*]}
+ConfigProbe ${ilaName} {U_EvrGty/rxUsrClk}
+# ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/clkOut[*]}
+ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/locked}
+ConfigProbe ${ilaName} {U_EvrGty/U_TXUSRCLK_PLL/locked}
+ConfigProbe ${ilaName} {U_EvrGty/rxResetDone}
+ConfigProbe ${ilaName} {U_EvrGty/rxDispErr[*]}
+ConfigProbe ${ilaName} {U_EvrGty/rxDecErr[*]}
+
+# ConfigProbe ${ilaName} {U_EvrGty/stableRst}
+ConfigProbe ${ilaName} {U_EvrGty/resetGt}
+# Hard reset signal (stablerst or resetgt):
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/stableRst}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClkActive}
+
+# QPLL1 locked signal
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/qpll1Lock}
+
+ConfigProbe ${ilaName} {U_EvrGty/txData[*]}
+ConfigProbe ${ilaName} {U_EvrGty/txDataK[*]}
+ConfigProbe ${ilaName} {U_EvrGty/txUsrClk}
+ConfigProbe ${ilaName} {U_EvrGty/txResetDone}
+
+ConfigProbe ${ilaName} {U_EvrGty/gtRxUserResetSync}
+ConfigProbe ${ilaName} {U_EvrGty/gtTxUserResetSync}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxOutClk}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txOutClk}
 
 ##########################
 ## Write the port map file
