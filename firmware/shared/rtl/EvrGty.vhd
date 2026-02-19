@@ -308,4 +308,28 @@ begin
             axilWriteSlave  => axilWriteSlave
             );
 
+    -- Generate some test data
+    TX_DUMMY_DATA : process(txUsrClkMmcm)
+        variable switch : boolean;
+
+        constant K28_5      : std_logic_vector(7 downto 0) := x"BC";  -- K28.5 comma
+        constant DUMMY_DATA : std_logic_vector(7 downto 0) := x"50";
+    begin
+        if rising_edge(txUsrClkMmcm) then
+            -- Pull all lines low if reset asserted or tx not yet ready
+            if gtHardReset = '1' or txResetDone /= '1' then
+                txData  <= (others => '0');
+                txDataK <= (others => '0');
+            elsif switch = true then
+                txData  <= DUMMY_DATA & K28_5;  -- Comma in lower 8 bits
+                txDataK <= "01";        -- Lower byte is comma
+                switch  := false;       -- Move to send only data state
+            else
+                txData  <= DUMMY_DATA & DUMMY_DATA;
+                txDataK <= "00";        -- Now commas here
+                switch  := true;        -- Move to send data + comma state
+            end if;
+        end if;
+    end process TX_DUMMY_DATA;
+
 end architecture mapping;

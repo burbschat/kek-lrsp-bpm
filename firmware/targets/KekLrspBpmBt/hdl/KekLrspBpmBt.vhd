@@ -270,7 +270,7 @@ begin
       generic map(
          TPD_G              => TPD_G,
          STABLE_CLK_F_HZ    => 156250000,  -- 156.250 MHz
-         TX_MIRROR_ENABLE_G => true
+         TX_MIRROR_ENABLE_G => false
          )
       port map(
          stableClk       => qsfpSysClk,
