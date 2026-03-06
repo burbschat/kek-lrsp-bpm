@@ -23,9 +23,9 @@
         "INTERNAL_NUM_COMMONS_EXAMPLE": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_TX_USRCLK_FREQUENCY": [ { "value": "114.2400000", "resolve_type": "generated", "format": "float", "enabled": false, "usage": "all" } ],
         "INTERNAL_RX_USRCLK_FREQUENCY": [ { "value": "114.2400000", "resolve_type": "generated", "format": "float", "enabled": false, "usage": "all" } ],
-        "RX_PPM_OFFSET": [ { "value": "0", "resolve_type": "user", "format": "long", "usage": "all" } ],
+        "RX_PPM_OFFSET": [ { "value": "1000", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "OOB_ENABLE": [ { "value": "false", "resolve_type": "user", "format": "bool", "enabled": false, "usage": "all" } ],
-        "RX_SSC_PPM": [ { "value": "0", "resolve_type": "user", "format": "long", "usage": "all" } ],
+        "RX_SSC_PPM": [ { "value": "0", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
         "INS_LOSS_NYQ": [ { "value": "20", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "PCIE_CORECLK_FREQ": [ { "value": "250", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "PCIE_USERCLK_FREQ": [ { "value": "250", "resolve_type": "user", "format": "float", "usage": "all" } ],
@@ -37,7 +37,7 @@
         "TX_INT_DATA_WIDTH": [ { "value": "20", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "TX_BUFFER_MODE": [ { "value": "1", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "TX_QPLL_FRACN_NUMERATOR": [ { "value": "8235599", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
-        "TX_OUTCLK_SOURCE": [ { "value": "TXPROGDIVCLK", "resolve_type": "user", "usage": "all" } ],
+        "TX_OUTCLK_SOURCE": [ { "value": "TXOUTCLKPMA", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
         "TX_DIFF_SWING_EMPH_MODE": [ { "value": "CUSTOM", "resolve_type": "user", "usage": "all" } ],
         "RX_LINE_RATE": [ { "value": "2.2848", "value_src": "user", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "RX_PLL_TYPE": [ { "value": "QPLL1", "resolve_type": "user", "usage": "all" } ],
@@ -47,7 +47,7 @@
         "RX_INT_DATA_WIDTH": [ { "value": "20", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "RX_BUFFER_MODE": [ { "value": "1", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "RX_QPLL_FRACN_NUMERATOR": [ { "value": "8235599", "value_src": "user", "resolve_type": "user", "format": "long", "usage": "all" } ],
-        "RX_EQ_MODE": [ { "value": "AUTO", "resolve_type": "user", "usage": "all" } ],
+        "RX_EQ_MODE": [ { "value": "LPM", "value_src": "user", "resolve_type": "user", "usage": "all" } ],
         "RX_JTOL_FC": [ { "value": "1.3706059", "resolve_type": "user", "format": "float", "usage": "all" } ],
         "RX_JTOL_LF_SLOPE": [ { "value": "-20", "resolve_type": "user", "format": "long", "usage": "all" } ],
         "RX_OUTCLK_SOURCE": [ { "value": "RXOUTCLKPMA", "resolve_type": "user", "usage": "all" } ],
@@ -170,7 +170,7 @@
         "PRESET": [ { "value": "None", "resolve_type": "user", "usage": "all" } ],
         "INTERNAL_PRESET": [ { "value": "None", "resolve_type": "user", "usage": "all" } ],
         "INTERNAL_PORT_USAGE_UPDATED": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
-        "INTERNAL_PORT_ENABLEMENT_UPDATED": [ { "value": "25", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
+        "INTERNAL_PORT_ENABLEMENT_UPDATED": [ { "value": "26", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_CHANNEL_SITES_UPDATED": [ { "value": "5", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_CHANNEL_COLUMN_LOC_MAX": [ { "value": "96", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_RX_COMMA_PRESET_UPDATE": [ { "value": "8", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
@@ -179,7 +179,7 @@
         "SECONDARY_QPLL_LINE_RATE": [ { "value": "10.3125", "resolve_type": "user", "format": "float", "enabled": false, "usage": "all" } ],
         "SECONDARY_QPLL_FRACN_NUMERATOR": [ { "value": "0", "resolve_type": "user", "format": "long", "enabled": false, "usage": "all" } ],
         "SECONDARY_QPLL_REFCLK_FREQUENCY": [ { "value": "257.8125", "resolve_type": "user", "format": "float", "enabled": false, "usage": "all" } ],
-        "TXPROGDIV_FREQ_ENABLE": [ { "value": "false", "resolve_type": "user", "format": "bool", "usage": "all" } ],
+        "TXPROGDIV_FREQ_ENABLE": [ { "value": "false", "resolve_type": "user", "format": "bool", "enabled": false, "usage": "all" } ],
         "TXPROGDIV_FREQ_SOURCE": [ { "value": "QPLL1", "resolve_type": "user", "enabled": false, "usage": "all" } ],
         "TXPROGDIV_FREQ_VAL": [ { "value": "114.24", "resolve_type": "user", "format": "float", "enabled": false, "usage": "all" } ],
         "SATA_TX_BURST_LEN": [ { "value": "15", "resolve_type": "user", "format": "long", "usage": "all" } ],
@@ -718,7 +718,7 @@
         "INTERNAL_PORT_ENABLED_TXPHALIGNDONE_OUT": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_PORT_ENABLED_TXPHINITDONE_OUT": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_PORT_ENABLED_TXPMARESETDONE_OUT": [ { "value": "1", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
-        "INTERNAL_PORT_ENABLED_TXPRGDIVRESETDONE_OUT": [ { "value": "1", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
+        "INTERNAL_PORT_ENABLED_TXPRGDIVRESETDONE_OUT": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_PORT_ENABLED_TXQPISENN_OUT": [ { "value": "-1", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_PORT_ENABLED_TXQPISENP_OUT": [ { "value": "-1", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
         "INTERNAL_PORT_ENABLED_TXRATEDONE_OUT": [ { "value": "0", "resolve_type": "generated", "format": "long", "enabled": false, "usage": "all" } ],
@@ -809,7 +809,7 @@
         "C_TX_MASTER_CHANNEL_IDX": [ { "value": "4", "resolve_type": "generated", "format": "long", "usage": "all" } ],
         "C_TX_OUTCLK_BUFG_GT_DIV": [ { "value": "1", "resolve_type": "generated", "format": "long", "usage": "all" } ],
         "C_TX_OUTCLK_FREQUENCY": [ { "value": "114.2400000", "resolve_type": "generated", "format": "float", "usage": "all" } ],
-        "C_TX_OUTCLK_SOURCE": [ { "value": "4", "resolve_type": "generated", "format": "long", "usage": "all" } ],
+        "C_TX_OUTCLK_SOURCE": [ { "value": "1", "resolve_type": "generated", "format": "long", "usage": "all" } ],
         "C_TX_PLL_TYPE": [ { "value": "1", "resolve_type": "generated", "format": "long", "usage": "all" } ],
         "C_TX_REFCLK_FREQUENCY": [ { "value": "156.2500001", "resolve_type": "generated", "format": "float", "usage": "all" } ],
         "C_TX_USER_CLOCKING_CONTENTS": [ { "value": "0", "resolve_type": "generated", "format": "long", "usage": "all" } ],
@@ -901,10 +901,9 @@
         "rxoutclk_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
         "rxpmaresetdone_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
         "txoutclk_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
-        "txpmaresetdone_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ],
-        "txprgdivresetdone_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ]
+        "txpmaresetdone_out": [ { "direction": "out", "size_left": "0", "size_right": "0", "driver_value": "0" } ]
       }
     }
   },
-  "checksum": "ba43d488"
+  "checksum": "d7de1acd"
 }

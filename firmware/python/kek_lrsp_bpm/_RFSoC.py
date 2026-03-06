@@ -29,3 +29,7 @@ class RFSoC(pr.Device):
             expand     = True,
             enabled    = False,  # Do not configure until after DSP clock stable
         ))
+
+        self.add(rfsoc.EvrGty(
+            offset     = 0xB002_0000,
+        ))

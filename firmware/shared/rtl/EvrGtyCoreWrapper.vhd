@@ -22,17 +22,28 @@ entity EvrGtyCoreWrapper is
         gtTxP    : out sl;
         gtTxN    : out sl;
 
+        gtPowerGood : out sl;
+
         -- Rx ports
-        rxReset        : in  sl;
-        rxUsrClk       : in  sl;
-        rxUsrClkActive : in  sl;
-        rxResetDone    : out sl;
-        rxData         : out slv(15 downto 0);
-        rxDataK        : out slv(1 downto 0);
-        rxDispErr      : out slv(1 downto 0);
-        rxDecErr       : out slv(1 downto 0);
-        rxPolarity     : in  sl;
-        rxOutClk       : out sl;
+        rxReset         : in  sl;
+        rxUsrClk        : in  sl;
+        rxUsrClkActive  : in  sl;
+        rxResetDone     : out sl;
+        rxData          : out slv(15 downto 0);
+        rxDataK         : out slv(1 downto 0);
+        rxDispErr       : out slv(1 downto 0);
+        rxDecErr        : out slv(1 downto 0);
+        rxPolarity      : in  sl;
+        rxOutClk        : out sl;
+        rx8b10bEn       : in  sl := '1';  -- High to enable 8b10b decoding, may disable for testing
+        rxCommaDetEn    : in  sl := '1';
+        rxMCommaAlignEn : in  sl := '1';  -- Minus comma alignemnt enable
+        rxPCommaAlignEn : in  sl := '1';  -- Plus comma alignemnt enable
+
+        rxByteIsAligned : out sl;
+        rxByteRealign   : out sl;
+        rxCommaDet      : out sl;
+        rxPmaResetDone  : out sl;
 
         -- Tx Ports
         txReset        : in  sl;
@@ -43,7 +54,13 @@ entity EvrGtyCoreWrapper is
         txDataK        : in  slv(1 downto 0);
         txPolarity     : in  sl;
         txOutClk       : out sl;
-        loopback       : in  slv(2 downto 0);
+
+        tx8b10bEn         : in  sl := '1';  -- High to enable 8b10b decoding, may disable for testing
+        txPmaResetDone    : out sl;
+        -- txPrgDivResetDone : out sl;
+
+        -- Loopback mode for testing, see UG578
+        loopback : in slv(2 downto 0);
 
         -- AXI-Lite DRP interface
         axilClk         : in  sl                     := '0';
@@ -124,8 +141,8 @@ architecture mapping of EvrGtyCoreWrapper is
             rxoutclk_out                       : out std_logic_vector(0 downto 0);
             rxpmaresetdone_out                 : out std_logic_vector(0 downto 0);
             txoutclk_out                       : out std_logic_vector(0 downto 0);
-            txpmaresetdone_out                 : out std_logic_vector(0 downto 0);
-            txprgdivresetdone_out              : out std_logic_vector(0 downto 0)
+            txpmaresetdone_out                 : out std_logic_vector(0 downto 0)
+            -- txprgdivresetdone_out              : out std_logic_vector(0 downto 0)
             );
     end component;
 
@@ -191,10 +208,10 @@ begin
             gtyrxp_in(0) => gtRxP,
             loopback_in  => loopback,
 
-            rx8b10ben_in(0)       => '1',
-            rxcommadeten_in(0)    => '1',
-            rxmcommaalignen_in(0) => '1',
-            rxpcommaalignen_in(0) => '1',
+            rx8b10ben_in(0)       => rx8b10bEn,
+            rxcommadeten_in(0)    => rxCommaDetEn,
+            rxmcommaalignen_in(0) => rxMCommaAlignEn,
+            rxpcommaalignen_in(0) => rxPCommaAlignEn,
 
             rxpolarity_in(0) => rxPolarity,
             rxusrclk_in(0)   => rxUsrClk,
@@ -203,7 +220,7 @@ begin
             gtytxn_out(0) => gtTxN,
             gtytxp_out(0) => gtTxP,
 
-            tx8b10ben_in(0) => '1',
+            tx8b10ben_in(0) => tx8b10bEn,
             -- Only need lower 16 bits as user data width is set to 16 bit in the IP core anyways
             txctrl0_in      => X"0000",
             txctrl1_in      => X"0000",
@@ -224,13 +241,13 @@ begin
             rxctrl3_out(1 downto 0)  => rxDecErr,
             rxctrl3_out(7 downto 2)  => dummy0_6,
 
-            gtpowergood_out       => open,
-            rxbyteisaligned_out   => open,
-            rxbyterealign_out     => open,
-            rxcommadet_out        => open,
-            rxpmaresetdone_out    => open,
-            txpmaresetdone_out    => open,
-            txprgdivresetdone_out => open
+            gtpowergood_out(0)       => gtPowerGood,
+            rxbyteisaligned_out(0)   => rxByteIsAligned,
+            rxbyterealign_out(0)     => rxByteRealign,
+            rxcommadet_out(0)        => rxCommaDet,
+            rxpmaresetdone_out(0)    => rxPmaResetDone,
+            txpmaresetdone_out(0)    => txPmaResetDone
+            -- txprgdivresetdone_out(0) => txPrgDivResetDone
             );
 
     txctrl2 <= "000000" & txDataK;  -- TX K character flag (16 bit width -> 16/8 = 2 flags)

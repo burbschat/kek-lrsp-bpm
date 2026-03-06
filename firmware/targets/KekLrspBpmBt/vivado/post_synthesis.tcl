@@ -46,9 +46,11 @@ set_property C_DATA_DEPTH 8192 [get_debug_cores ${ilaName}]
 # TODO: I guess this really should be the axi clock but this gives timing
 # errors... Try to somehow use that clock I guess? Maybe it must be the axi
 # clock...
-SetDebugCoreClk ${ilaName} {U_XVC/xvcClk156}
+# SetDebugCoreClk ${ilaName} {U_XVC/xvcClk156}
 # SetDebugCoreClk ${ilaName} {U_App/axilClk}
+# SetDebugCoreClk ${ilaName} {U_RFDC/refClk}
 # SetDebugCoreClk ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClk}
+SetDebugCoreClk ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/clkIn}
 
 #######################
 ## Set the debug Probes
@@ -80,6 +82,26 @@ ConfigProbe ${ilaName} {U_EvrGty/resetGt}
 # Hard reset signal (stablerst or resetgt):
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/stableRst}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClkActive}
+
+
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rx8b10bEn}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDetEn}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxMCommaAlignEn}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPCommaAlignEn}
+
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteIsAligned}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteRealign}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDet}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPmaResetDone}
+
+ConfigProbe ${ilaName} {qsfpModPrs}
+ConfigProbe ${ilaName} {qsfpLpModeInt}
+ConfigProbe ${ilaName} {qsfpReset}
+
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/tx8b10bEn}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPmaResetDone}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPrgDivResetDone}
+
 
 # QPLL1 locked signal
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/qpll1Lock}

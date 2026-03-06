@@ -6,3 +6,4 @@ from kek_lrsp_bpm._SoftwarePosCalcProcessor import *
 from kek_lrsp_bpm._PrependLocalTime import *
 from kek_lrsp_bpm._AttenuationCtrl import *
 from kek_lrsp_bpm._CalibrationCtrl import *
+from kek_lrsp_bpm._EvrGty import *
