@@ -25,20 +25,22 @@ entity EvrGtyCoreWrapper is
         gtPowerGood : out sl;
 
         -- Rx ports
-        rxReset         : in  sl;
-        rxUsrClk        : in  sl;
-        rxUsrClkActive  : in  sl;
+        rxResetDatapath : in  sl;
+        rxResetUsrClk   : in  sl;
+        rxUsrClk        : out sl;
+        rxUsrClkActive  : out sl;
+        rxUsrClkSrcClk  : out sl;
         rxResetDone     : out sl;
         rxData          : out slv(15 downto 0);
         rxDataK         : out slv(1 downto 0);
         rxDispErr       : out slv(1 downto 0);
         rxDecErr        : out slv(1 downto 0);
         rxPolarity      : in  sl;
-        rxOutClk        : out sl;
         rx8b10bEn       : in  sl := '1';  -- High to enable 8b10b decoding, may disable for testing
         rxCommaDetEn    : in  sl := '1';
         rxMCommaAlignEn : in  sl := '1';  -- Minus comma alignemnt enable
         rxPCommaAlignEn : in  sl := '1';  -- Plus comma alignemnt enable
+        rxCdrStable     : out sl;
 
         rxByteIsAligned : out sl;
         rxByteRealign   : out sl;
@@ -46,17 +48,17 @@ entity EvrGtyCoreWrapper is
         rxPmaResetDone  : out sl;
 
         -- Tx Ports
-        txReset        : in  sl;
-        txUsrClk       : in  sl;
-        txUsrClkActive : in  sl;
-        txResetDone    : out sl;
-        txData         : in  slv(15 downto 0);
-        txDataK        : in  slv(1 downto 0);
-        txPolarity     : in  sl;
-        txOutClk       : out sl;
-
-        tx8b10bEn         : in  sl := '1';  -- High to enable 8b10b decoding, may disable for testing
-        txPmaResetDone    : out sl;
+        txResetDatapath : in  sl;
+        txResetUsrClk   : in  sl;
+        txUsrClk        : out sl;
+        txUsrClkActive  : out sl;
+        txUsrClkSrcClk  : out sl;
+        txResetDone     : out sl;
+        txData          : in  slv(15 downto 0);
+        txDataK         : in  slv(1 downto 0);
+        txPolarity      : in  sl;
+        tx8b10bEn       : in  sl := '1';  -- High to enable 8b10b decoding, may disable for testing
+        txPmaResetDone  : out sl;
         -- txPrgDivResetDone : out sl;
 
         -- Loopback mode for testing, see UG578
@@ -77,18 +79,16 @@ architecture mapping of EvrGtyCoreWrapper is
 
     component EvrGtyCore
         port (
-            gtwiz_userclk_tx_active_in         : in  std_logic_vector(0 downto 0);
-            gtwiz_userclk_rx_active_in         : in  std_logic_vector(0 downto 0);
-            -- Buffer bypass disabled for now in IP core. Maybe no buffer would
-            -- be better for minmal latency?
-            -- gtwiz_buffbypass_tx_reset_in       : in  std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_tx_start_user_in  : in  std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_tx_done_out       : out std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_tx_error_out      : out std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_rx_reset_in       : in  std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_rx_start_user_in  : in  std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_rx_done_out       : out std_logic_vector(0 downto 0);
-            -- gtwiz_buffbypass_rx_error_out      : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_tx_reset_in          : in  std_logic_vector(0 downto 0);
+            gtwiz_userclk_tx_srcclk_out        : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_tx_usrclk_out        : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_tx_usrclk2_out       : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_tx_active_out        : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_rx_reset_in          : in  std_logic_vector(0 downto 0);
+            gtwiz_userclk_rx_srcclk_out        : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_rx_usrclk_out        : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_rx_usrclk2_out       : out std_logic_vector(0 downto 0);
+            gtwiz_userclk_rx_active_out        : out std_logic_vector(0 downto 0);
             gtwiz_reset_clk_freerun_in         : in  std_logic_vector(0 downto 0);
             gtwiz_reset_all_in                 : in  std_logic_vector(0 downto 0);
             gtwiz_reset_tx_pll_and_datapath_in : in  std_logic_vector(0 downto 0);
@@ -117,15 +117,11 @@ architecture mapping of EvrGtyCoreWrapper is
             rxmcommaalignen_in                 : in  std_logic_vector(0 downto 0);
             rxpcommaalignen_in                 : in  std_logic_vector(0 downto 0);
             rxpolarity_in                      : in  std_logic_vector(0 downto 0);
-            rxusrclk_in                        : in  std_logic_vector(0 downto 0);
-            rxusrclk2_in                       : in  std_logic_vector(0 downto 0);
             tx8b10ben_in                       : in  std_logic_vector(0 downto 0);
             txctrl0_in                         : in  std_logic_vector(15 downto 0);
             txctrl1_in                         : in  std_logic_vector(15 downto 0);
             txctrl2_in                         : in  std_logic_vector(7 downto 0);
             txpolarity_in                      : in  std_logic_vector(0 downto 0);
-            txusrclk_in                        : in  std_logic_vector(0 downto 0);
-            txusrclk2_in                       : in  std_logic_vector(0 downto 0);
             drpdo_out                          : out std_logic_vector(15 downto 0);
             drprdy_out                         : out std_logic_vector(0 downto 0);
             gtpowergood_out                    : out std_logic_vector(0 downto 0);
@@ -138,11 +134,8 @@ architecture mapping of EvrGtyCoreWrapper is
             rxctrl1_out                        : out std_logic_vector(15 downto 0);
             rxctrl2_out                        : out std_logic_vector(7 downto 0);
             rxctrl3_out                        : out std_logic_vector(7 downto 0);
-            rxoutclk_out                       : out std_logic_vector(0 downto 0);
             rxpmaresetdone_out                 : out std_logic_vector(0 downto 0);
-            txoutclk_out                       : out std_logic_vector(0 downto 0);
             txpmaresetdone_out                 : out std_logic_vector(0 downto 0)
-            -- txprgdivresetdone_out              : out std_logic_vector(0 downto 0)
             );
     end component;
 
@@ -164,29 +157,23 @@ begin
 
     U_EvrGtyCore : EvrGtyCore
         port map (
-            gtwiz_userclk_tx_active_in(0) => txUsrClkActive,
-            gtwiz_userclk_rx_active_in(0) => rxUsrClkActive,
+            gtwiz_userclk_tx_reset_in(0)   => txResetUsrClk,
+            gtwiz_userclk_tx_active_out(0) => txUsrClkActive,
+            gtwiz_userclk_tx_srcclk_out(0) => txUsrClkSrcClk,
+            gtwiz_userclk_rx_reset_in(0)   => rxResetUsrClk,
+            gtwiz_userclk_rx_active_out(0) => rxUsrClkActive,
+            gtwiz_userclk_rx_srcclk_out(0) => rxUsrClkSrcClk,
+
             gtwiz_reset_clk_freerun_in(0) => stableClk,
             gtwiz_reset_all_in(0)         => stableRst,
 
             gtwiz_reset_tx_pll_and_datapath_in(0) => '0',
-            gtwiz_reset_tx_datapath_in(0)         => txReset,
+            gtwiz_reset_tx_datapath_in(0)         => txResetDatapath,
             gtwiz_reset_rx_pll_and_datapath_in(0) => '0',
-            gtwiz_reset_rx_datapath_in(0)         => rxReset,
-            gtwiz_reset_rx_cdr_stable_out         => open,
+            gtwiz_reset_rx_datapath_in(0)         => rxResetDatapath,
+            gtwiz_reset_rx_cdr_stable_out(0)      => rxCdrStable,
             gtwiz_reset_tx_done_out(0)            => txResetDone,
             gtwiz_reset_rx_done_out(0)            => rxResetDone,
-
-            -- Buffer bypass disabled for now in IP core. Maybe no buffer would
-            -- be better for minmal latency?
-            -- gtwiz_buffbypass_tx_reset_in      => gtwiz_buffbypass_tx_reset_in,
-            -- gtwiz_buffbypass_tx_start_user_in => gtwiz_buffbypass_tx_start_user_in,
-            -- gtwiz_buffbypass_tx_done_out      => gtwiz_buffbypass_tx_done_out,
-            -- gtwiz_buffbypass_tx_error_out     => gtwiz_buffbypass_tx_error_out,
-            -- gtwiz_buffbypass_rx_reset_in      => gtwiz_buffbypass_rx_reset_in,
-            -- gtwiz_buffbypass_rx_start_user_in => gtwiz_buffbypass_rx_start_user_in,
-            -- gtwiz_buffbypass_rx_done_out      => gtwiz_buffbypass_rx_done_out,
-            -- gtwiz_buffbypass_rx_error_out     => gtwiz_buffbypass_rx_error_out,
 
             gtwiz_userdata_tx_in  => txData,
             gtwiz_userdata_rx_out => rxData,
@@ -213,9 +200,9 @@ begin
             rxmcommaalignen_in(0) => rxMCommaAlignEn,
             rxpcommaalignen_in(0) => rxPCommaAlignEn,
 
-            rxpolarity_in(0) => rxPolarity,
-            rxusrclk_in(0)   => rxUsrClk,
-            rxusrclk2_in(0)  => rxUsrClk,
+            rxpolarity_in(0)                => rxPolarity,
+            gtwiz_userclk_rx_usrclk_out(0)  => rxUsrClk,
+            gtwiz_userclk_rx_usrclk2_out(0) => open,
 
             gtytxn_out(0) => gtTxN,
             gtytxp_out(0) => gtTxP,
@@ -226,12 +213,9 @@ begin
             txctrl1_in      => X"0000",
             txctrl2_in      => txctrl2,
 
-            txpolarity_in(0) => txPolarity,
-            txusrclk_in(0)   => txUsrClk,
-            txusrclk2_in(0)  => txUsrClk,
-
-            rxoutclk_out(0) => rxOutClk,
-            txoutclk_out(0) => txOutClk,
+            txpolarity_in(0)                => txPolarity,
+            gtwiz_userclk_tx_usrclk_out(0)  => txUsrClk,
+            gtwiz_userclk_tx_usrclk2_out(0) => open,
 
             rxctrl0_out(1 downto 0)  => rxDataK,  -- RX K character flag (16 bit width -> 16/8 = 2 flags)
             rxctrl0_out(15 downto 2) => dummy1_14,
@@ -241,13 +225,12 @@ begin
             rxctrl3_out(1 downto 0)  => rxDecErr,
             rxctrl3_out(7 downto 2)  => dummy0_6,
 
-            gtpowergood_out(0)       => gtPowerGood,
-            rxbyteisaligned_out(0)   => rxByteIsAligned,
-            rxbyterealign_out(0)     => rxByteRealign,
-            rxcommadet_out(0)        => rxCommaDet,
-            rxpmaresetdone_out(0)    => rxPmaResetDone,
-            txpmaresetdone_out(0)    => txPmaResetDone
-            -- txprgdivresetdone_out(0) => txPrgDivResetDone
+            gtpowergood_out(0)     => gtPowerGood,
+            rxbyteisaligned_out(0) => rxByteIsAligned,
+            rxbyterealign_out(0)   => rxByteRealign,
+            rxcommadet_out(0)      => rxCommaDet,
+            rxpmaresetdone_out(0)  => rxPmaResetDone,
+            txpmaresetdone_out(0)  => txPmaResetDone
             );
 
     txctrl2 <= "000000" & txDataK;  -- TX K character flag (16 bit width -> 16/8 = 2 flags)

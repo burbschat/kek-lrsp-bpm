@@ -18,6 +18,8 @@ use unisim.vcomponents.all;
 --   code/shared bus + generic to enable/disable mirroring. Mirroring should be
 --   handeled in this entity, not the decoder.
 -- > Keep EVR Decoder as separate entity to allow use with other transceivers.
+-- > Could not get the thing to work with external clock network. Perhaps that
+--   was the issue. Now try with clock network in the IP core...
 
 entity EvrGty is
     generic (
@@ -30,8 +32,6 @@ entity EvrGty is
         ----------------------------------------------------------------------------------------------
         -- EVR Settings
         ----------------------------------------------------------------------------------------------
-        TX_POLARITY_G      : sl      := '0';
-        RX_POLARITY_G      : sl      := '0';
         TX_MIRROR_ENABLE_G : boolean := true
         );
     port (
@@ -103,18 +103,12 @@ architecture mapping of EvrGty is
     signal rxResetDone : sl;
     signal txResetDone : sl;
 
-    signal rxOutClk : sl;
-    signal txOutClk : sl;
-
-    signal rxOutClkBuff : sl;
-    signal txOutClkBuff : sl;
-
-    signal rxUsrClk           : sl;
-    signal txUsrClk           : sl;
-    signal rxUsrClkMmcm       : sl;     -- MMCM buffered clock
-    signal txUsrClkMmcm       : sl;
-    signal rxUsrClkMmcmLocked : sl;     -- MMCM locked signal
-    signal txUsrClkMmcmLocked : sl;
+    signal rxUsrClk : sl;
+    signal txUsrClk : sl;
+    -- signal rxUsrClkMmcm       : sl;     -- MMCM buffered clock
+    -- signal txUsrClkMmcm       : sl;
+    -- signal rxUsrClkMmcmLocked : sl;     -- MMCM locked signal
+    -- signal txUsrClkMmcmLocked : sl;
 
     signal rxUsrClkActive : sl;
     signal txUsrClkActive : sl;
@@ -137,6 +131,8 @@ architecture mapping of EvrGty is
 
     signal txPmaResetDone : sl;
 
+    signal rxCdrStable : sl;
+
     attribute keep       : string;
     attribute mark_debug : string;
 
@@ -144,66 +140,89 @@ architecture mapping of EvrGty is
     attribute keep of resetGtSync : signal is "true";
     attribute keep of gtHardReset : signal is "true";
 
-    attribute keep of rxData             : signal is "true";
-    attribute keep of rxDataK            : signal is "true";
-    attribute keep of rxUsrClk           : signal is "true";
-    attribute keep of rxUsrClkMmcmLocked : signal is "true";
-    attribute keep of rxResetDone        : signal is "true";
-    attribute keep of rxDispErr          : signal is "true";
-    attribute keep of rxDecErr           : signal is "true";
-    attribute keep of rxByteIsAligned    : signal is "true";
-    attribute keep of rxByteRealign      : signal is "true";
-    attribute keep of rxCommaDet         : signal is "true";
-    attribute keep of rxPmaResetDone     : signal is "true";
+    attribute keep of rxData          : signal is "true";
+    attribute keep of rxDataK         : signal is "true";
+    attribute keep of rxUsrClk        : signal is "true";
+    -- attribute keep of rxUsrClkMmcmLocked : signal is "true";
+    attribute keep of rxResetDone     : signal is "true";
+    attribute keep of rxDispErr       : signal is "true";
+    attribute keep of rxDecErr        : signal is "true";
+    attribute keep of rxByteIsAligned : signal is "true";
+    attribute keep of rxByteRealign   : signal is "true";
+    attribute keep of rxCommaDet      : signal is "true";
+    attribute keep of rxPmaResetDone  : signal is "true";
 
-    attribute keep of txData             : signal is "true";
-    attribute keep of txDataK            : signal is "true";
-    attribute keep of txUsrClk           : signal is "true";
-    attribute keep of txUsrClkMmcmLocked : signal is "true";
-    attribute keep of txResetDone        : signal is "true";
-    attribute keep of txPmaResetDone     : signal is "true";
+    attribute keep of rxCdrStable : signal is "true";
 
+    attribute keep of txData         : signal is "true";
+    attribute keep of txDataK        : signal is "true";
+    attribute keep of txUsrClk       : signal is "true";
+    -- attribute keep of txUsrClkMmcmLocked : signal is "true";
+    attribute keep of txResetDone    : signal is "true";
+    attribute keep of txPmaResetDone : signal is "true";
+
+    attribute keep of txUsrClkActive : signal is "true";
+    attribute keep of rxUsrClkActive : signal is "true";
 
     attribute mark_debug of qpll1Locked : signal is "true";
     attribute mark_debug of resetGtSync : signal is "true";
     attribute mark_debug of gtHardReset : signal is "true";
 
-    attribute mark_debug of rxData             : signal is "true";
-    attribute mark_debug of rxDataK            : signal is "true";
-    attribute mark_debug of rxUsrClk           : signal is "true";
-    attribute mark_debug of rxUsrClkMmcmLocked : signal is "true";
-    attribute mark_debug of rxResetDone        : signal is "true";
-    attribute mark_debug of rxDispErr          : signal is "true";
-    attribute mark_debug of rxDecErr           : signal is "true";
-    attribute mark_debug of rxByteIsAligned    : signal is "true";
-    attribute mark_debug of rxByteRealign      : signal is "true";
-    attribute mark_debug of rxCommaDet         : signal is "true";
-    attribute mark_debug of rxPmaResetDone     : signal is "true";
+    attribute mark_debug of rxData          : signal is "true";
+    attribute mark_debug of rxDataK         : signal is "true";
+    attribute mark_debug of rxUsrClk        : signal is "true";
+    -- attribute mark_debug of rxUsrClkMmcmLocked : signal is "true";
+    attribute mark_debug of rxResetDone     : signal is "true";
+    attribute mark_debug of rxDispErr       : signal is "true";
+    attribute mark_debug of rxDecErr        : signal is "true";
+    attribute mark_debug of rxByteIsAligned : signal is "true";
+    attribute mark_debug of rxByteRealign   : signal is "true";
+    attribute mark_debug of rxCommaDet      : signal is "true";
+    attribute mark_debug of rxPmaResetDone  : signal is "true";
 
-    attribute mark_debug of txData             : signal is "true";
-    attribute mark_debug of txDataK            : signal is "true";
-    attribute mark_debug of txUsrClk           : signal is "true";
-    attribute mark_debug of txUsrClkMmcmLocked : signal is "true";
-    attribute mark_debug of txResetDone        : signal is "true";
-    attribute mark_debug of txPmaResetDone     : signal is "true";
+    attribute mark_debug of rxCdrStable : signal is "true";
+
+    attribute mark_debug of txData         : signal is "true";
+    attribute mark_debug of txDataK        : signal is "true";
+    attribute mark_debug of txUsrClk       : signal is "true";
+    -- attribute mark_debug of txUsrClkMmcmLocked : signal is "true";
+    attribute mark_debug of txResetDone    : signal is "true";
+    attribute mark_debug of txPmaResetDone : signal is "true";
+
+    attribute mark_debug of txUsrClkActive : signal is "true";
+    attribute mark_debug of rxUsrClkActive : signal is "true";
 
 
     type RegType is record
-        loopback       : slv(2 downto 0);
-        dummyData      : slv(7 downto 0);
-        dummyDataComma : slv(7 downto 0);
-        trxRequestLP   : sl;
-        axilReadSlave  : AxiLiteReadSlaveType;
-        axilWriteSlave : AxiLiteWriteSlaveType;
+        loopback        : slv(2 downto 0);
+        dummyData       : slv(7 downto 0);
+        dummyDataComma  : slv(7 downto 0);
+        trxRequestLP    : sl;
+        txPolarity      : sl;
+        rxPolarity      : sl;
+        tx8b10bEn       : sl;
+        rx8b10bEn       : sl;
+        rxCommaDetEn    : sl;
+        rxMCommaAlignEn : sl;
+        rxPCommaAlignEn : sl;
+        axilReadSlave   : AxiLiteReadSlaveType;
+        axilWriteSlave  : AxiLiteWriteSlaveType;
     end record RegType;
 
     constant REG_INIT_C : RegType := (
-        loopback       => "000",        -- 0b000 is normal operation
-        dummyData      => x"50",  -- Dummy data to transmit when no comma is transmitted
-        dummyDataComma => x"BC",  -- Comma to insert when transmitting dummy data for testing
-        trxRequestLP   => '0',          -- Default is NOT low power
-        axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
-        axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
+        loopback        => "000",       -- 0b000 is normal operation
+        dummyData       => x"50",  -- Dummy data to transmit when no comma is transmitted
+        dummyDataComma  => x"BC",  -- Comma to insert when transmitting dummy data for testing
+        trxRequestLP    => '0',         -- Default is NOT low power
+        txPolarity      => '0',
+        rxPolarity      => '0',
+        tx8b10bEn       => '1',
+        rx8b10bEn       => '1',
+        rxCommaDetEn    => '1',
+        rxMCommaAlignEn => '1',
+        rxPCommaAlignEn => '1',
+        axilReadSlave   => AXI_LITE_READ_SLAVE_INIT_C,
+        axilWriteSlave  => AXI_LITE_WRITE_SLAVE_INIT_C);
 
     signal r   : RegType := REG_INIT_C;
     signal rin : RegType;
@@ -244,37 +263,10 @@ begin
             clk    => stableClk,                -- [in]
             rstOut => gtTxUserResetSync);       -- [out]
 
-    U_BUFG_GT_RxOutClk : BUFG_GT
-        port map (
-            I       => rxOutClk,        -- 1-bit input: Buffer
-            O       => rxOutClkBuff,    -- 1-bit output: Buffer
-            CE      => '1',             -- 1-bit input: Buffer enable
-            CEMASK  => '0',             -- 1-bit input: CE Mask
-            CLR     => '0',             -- 1-bit input: Asynchronous clear
-            CLRMASK => '0',             -- 1-bit input: CLR Mask
-            DIV     => "000"            -- 3-bit input: Dynamic divide Value
-            );
-
-    U_BUFG_GT_TxOutClk : BUFG_GT
-        port map (
-            I       => txOutClk,        -- 1-bit input: Buffer
-            O       => txOutClkBuff,    -- 1-bit output: Buffer
-            CE      => '1',             -- 1-bit input: Buffer enable
-            CEMASK  => '0',             -- 1-bit input: CE Mask
-            CLR     => '0',             -- 1-bit input: Asynchronous clear
-            CLRMASK => '0',             -- 1-bit input: CLR Mask
-            DIV     => "000"            -- 3-bit input: Dynamic divide Value
-            );
-
-
-    -- Loop recovered clocks back for the user interface
-    rxUsrClk <= rxOutClkBuff;
-    txUsrClk <= txOutClkBuff;
-
     -- Output (recovered and buffered) signal clocks. Event codes/shared bus
     -- also synchronous to this clock.
-    evrRxUsrClk <= rxUsrClkMmcm;
-    evrTxUsrClk <= txUsrClkMmcm;
+    evrRxUsrClk <= rxUsrClk;
+    evrTxUsrClk <= txUsrClk;
 
     -- U_TxMirrorGen : if TX_MIRROR_ENABLE_G generate
     --     -- Mirror rx to TX 'as is' for to allow for event receiver daisy chaining
@@ -284,53 +276,53 @@ begin
 
 
     -- MMCM (PLL sufficient?) to detect stable user clock of transceiver
-    U_RXUSRCLK_PLL : entity surf.ClockManagerUltraScale
-        generic map(
-            TPD_G              => TPD_G,
-            TYPE_G             => "MMCM",
-            INPUT_BUFG_G       => true,
-            FB_BUFG_G          => true,
-            RST_IN_POLARITY_G  => '1',
-            NUM_CLOCKS_G       => 1,
-            -- MMCM attributes
-            BANDWIDTH_G        => "OPTIMIZED",
-            CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
-            DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
-            CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
-            CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
-        port map(
-            -- Clock Input
-            clkIn     => rxUsrClk,
-            rstIn     => gtHardReset,
-            -- Clock Outputs
-            locked    => rxUsrClkMmcmLocked,
-            clkOut(0) => rxUsrClkMmcm,
-            -- Reset Outputs
-            rstOut(0) => open);
-
-    U_TXUSRCLK_PLL : entity surf.ClockManagerUltraScale
-        generic map(
-            TPD_G              => TPD_G,
-            TYPE_G             => "MMCM",
-            INPUT_BUFG_G       => true,
-            FB_BUFG_G          => true,
-            RST_IN_POLARITY_G  => '1',
-            NUM_CLOCKS_G       => 1,
-            -- MMCM attributes
-            BANDWIDTH_G        => "OPTIMIZED",
-            CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
-            DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
-            CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
-            CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
-        port map(
-            -- Clock Input
-            clkIn     => txUsrClk,
-            rstIn     => gtHardReset,
-            -- Clock Outputs
-            locked    => txUsrClkMmcmLocked,
-            clkOut(0) => txUsrClkMmcm,
-            -- Reset Outputs
-            rstOut(0) => open);
+    -- U_RXUSRCLK_PLL : entity surf.ClockManagerUltraScale
+    --     generic map(
+    --         TPD_G              => TPD_G,
+    --         TYPE_G             => "MMCM",
+    --         INPUT_BUFG_G       => true,
+    --         FB_BUFG_G          => true,
+    --         RST_IN_POLARITY_G  => '1',
+    --         NUM_CLOCKS_G       => 1,
+    --         -- MMCM attributes
+    --         BANDWIDTH_G        => "OPTIMIZED",
+    --         CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
+    --         DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
+    --         CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
+    --         CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
+    --     port map(
+    --         -- Clock Input
+    --         clkIn     => rxUsrClk,
+    --         rstIn     => gtHardReset,
+    --         -- Clock Outputs
+    --         locked    => rxUsrClkMmcmLocked,
+    --         clkOut(0) => rxUsrClkMmcm,
+    --         -- Reset Outputs
+    --         rstOut(0) => open);
+    --
+    -- U_TXUSRCLK_PLL : entity surf.ClockManagerUltraScale
+    --     generic map(
+    --         TPD_G              => TPD_G,
+    --         TYPE_G             => "MMCM",
+    --         INPUT_BUFG_G       => true,
+    --         FB_BUFG_G          => true,
+    --         RST_IN_POLARITY_G  => '1',
+    --         NUM_CLOCKS_G       => 1,
+    --         -- MMCM attributes
+    --         BANDWIDTH_G        => "OPTIMIZED",
+    --         CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
+    --         DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
+    --         CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
+    --         CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
+    --     port map(
+    --         -- Clock Input
+    --         clkIn     => txUsrClk,
+    --         rstIn     => gtHardReset,
+    --         -- Clock Outputs
+    --         locked    => txUsrClkMmcmLocked,
+    --         clkOut(0) => txUsrClkMmcm,
+    --         -- Reset Outputs
+    --         rstOut(0) => open);
 
 
     ---------------------
@@ -359,57 +351,65 @@ begin
     --------------------------
     -- Wrapper for GTY IP core
     --------------------------
-    rxUsrClkActive <= rxUsrClkMmcmLocked and qpll1Locked;  -- Assume clock stable if MMCM locked
-    txUsrClkActive <= txUsrClkMmcmLocked and qpll1Locked;  -- Assume clock stable if reset done
 
     U_EvrGtyCoreWrapper : entity work.EvrGtyCoreWrapper
         generic map(
             TPD_G => TPD_G
             )
         port map(
-            stableClk       => stableClk,
-            stableRst       => gtHardReset,
-            qpll1Lock       => qpll1Locked,
-            gtRefClk        => gtRefClk,
-            gtRxP           => evrGtRxP,
-            gtRxN           => evrGtRxN,
-            gtTxP           => evrGtTxP,
-            gtTxN           => evrGtTxN,
-            rxReset         => gtRxUserResetSync,
-            rxUsrClk        => rxUsrClk,  -- Probably does not matter if rxUsrClkMmcm or rxUsrClk directly? Try non mmcm one...
-            -- TODO: I think we must assert UsrClkActive to complete reset
-            -- procedure, i.e. ResetDone will never be asserted before
-            -- UsrClkActive is asserted.
-            -- rxUsrClkActive  => evrRxMmcmLocked,  -- Put MMCM in the module locking on gtRefClk?!
+            stableClk => stableClk,
+            stableRst => gtHardReset,
+            qpll1Lock => qpll1Locked,
+
+            -- GTY FPGA IO
+            gtRefClk => gtRefClk,  -- Use Dedicated clock pin for transceiver
+            gtRxP    => evrGtRxP,
+            gtRxN    => evrGtRxN,
+            gtTxP    => evrGtTxP,
+            gtTxN    => evrGtTxN,
+
+            -- gtPowerGood => open,
+
+            -- Rx ports
+            rxResetDatapath => gtRxUserResetSync,
+            rxResetUsrClk   => gtRxUserResetSync,
+            rxUsrClk        => rxUsrClk,
             rxUsrClkActive  => rxUsrClkActive,
+            -- rxUsrClkSrcClk  => open, -- Mirror of clock used to derive userclock (?)
             rxResetDone     => rxResetDone,
             rxData          => rxData,  -- Not yet connected to anything!
             rxDataK         => rxDataK,
             rxDispErr       => rxDispErr,  -- Disparity error flags (one per byte)
             rxDecErr        => rxDecErr,   -- Decode error flags (one per byte)
-            rxPolarity      => RX_POLARITY_G,
-            rxOutClk        => rxOutClk,
-            txReset         => gtTxUserResetSync,
-            txUsrClk        => txUsrClk, -- Try non mmcm one...
+            rxPolarity      => r.rxPolarity,
+            rx8b10bEn       => r.rx8b10bEn,
+            rxCommaDetEn    => r.rxCommaDetEn,
+            rxMCommaAlignEn => r.rxMCommaAlignEn,
+            rxPCommaAlignEn => r.rxPCommaAlignEn,
+            rxCdrStable     => rxCdrStable,
+
             rxByteIsAligned => rxByteIsAligned,
             rxByteRealign   => rxByteRealign,
             rxCommaDet      => rxCommaDet,
             rxPmaResetDone  => rxPmaResetDone,
 
-            -- TODO: I think we must assert UsrClkActive to complete reset
-            -- procedure, i.e. ResetDone will never be asserted before
-            -- UsrClkActive is asserted.
-            -- txUsrClkActive  => evrTxMmcmLocked,
+            -- Tx ports
+            txResetDatapath => gtTxUserResetSync,
+            txResetUsrClk   => gtTxUserResetSync,
+            txUsrClk        => txUsrClk,
             txUsrClkActive  => txUsrClkActive,
+            -- txUsrClkSrcClk => open, -- Mirror of clock used to derive userclock (?)
             txResetDone     => txResetDone,
             txData          => txData,  -- Not yet connected to anything!
             txDataK         => txDataK,
-            txPolarity      => TX_POLARITY_G,
-            txOutClk        => txOutClk,
+            txPolarity      => r.txPolarity,
+            tx8b10bEn       => r.tx8b10bEn,
             txPmaResetDone  => txPmaResetDone,
-            -- Loopback makes no sense as only TX->RX is possible and we do not
-            -- actually generate anything to trasnmit, only mirror RX->TX.
-            loopback        => r.loopback,  -- "000" -> normal operation (see UG578)
+
+            -- Loopback mode for testing, see UG578
+            loopback => r.loopback,  -- "000" -> normal operation (see UG578)
+
+            -- AXI-Lite DRP interface
             axilClk         => axilClk,
             axilRst         => axilRst,
             axilReadMaster  => axilReadMasters(AXIL_DRP_INDEX_C),
@@ -419,10 +419,10 @@ begin
             );
 
     -- Generate some test data
-    TX_DUMMY_DATA : process(txUsrClkMmcm)
+    TX_DUMMY_DATA : process(txUsrClk)
         variable switch : boolean;
     begin
-        if rising_edge(txUsrClkMmcm) then
+        if rising_edge(txUsrClk) then
             -- Pull all lines low if reset asserted or tx not yet ready
             if gtHardReset = '1' or txResetDone /= '1' then
                 txData  <= (others => '0');
@@ -449,13 +449,6 @@ begin
             axilWriteSlave  => axilWriteSlaves(AXIL_TEST_INDEX_C)
             );
 
-
-    -- Alias register axil signals so I don't have to type the index every time
-    -- axilRegReadMaster  <= axilReadMasters(EVR_REG_INDEX_C);
-    -- axilRegReadSlave   <= axilReadSlaves(EVR_REG_INDEX_C);
-    -- axilRegWriteMaster <= axilWriteMasters(EVR_REG_INDEX_C);
-    -- axilRegWriteSlave  <= axilWriteSlaves(EVR_REG_INDEX_C);
-
     comb : process (axilReadMasters(EVR_REG_INDEX_C), axilWriteMasters(EVR_REG_INDEX_C), r) is
         variable v      : RegType;
         variable axilEp : AxiLiteEndPointType;
@@ -475,10 +468,18 @@ begin
         -- Map the read registers
         -------------------------
 
-        axiSlaveRegister (axilEp, x"00", 0, v.loopback);   -- GTY Loopback mode
+        axiSlaveRegister (axilEp, x"00", 0, v.loopback);   -- GTY loopback mode
         axiSlaveRegister (axilEp, x"04", 0, v.dummyData);  -- Dummy data to transmit for testing
         axiSlaveRegister (axilEp, x"08", 0, v.dummyDataComma);  -- Comma to insert when transmitting dummy data for testing
-        axiSlaveRegister (axilEp, x"0a", 0, v.trxRequestLP);  -- Comma to insert when transmitting dummy data for testing
+        axiSlaveRegister (axilEp, x"0a", 0, v.trxRequestLP);  -- Transmitter low power request line state
+        axiSlaveRegister (axilEp, x"0c", 0, v.txPolarity);  -- GTY TX polarity
+        axiSlaveRegister (axilEp, x"0c", 1, v.rxPolarity);  -- GTY RX polarity
+
+        axiSlaveRegister (axilEp, x"10", 0, v.tx8b10bEn);  -- TX 8b10b decode enable
+        axiSlaveRegister (axilEp, x"10", 1, v.rx8b10bEn);  -- RX 8b10b decode enable
+        axiSlaveRegister (axilEp, x"14", 0, v.rxCommaDetEn);  -- GTY RX comma detection enable
+        axiSlaveRegister (axilEp, x"14", 2, v.rxMCommaAlignEn);  -- GTY RX align on minus comma enable
+        axiSlaveRegister (axilEp, x"14", 3, v.rxPCommaAlignEn);  -- GTY RX align on plus comma enable
 
         -- Closeout the transaction
         axiSlaveDefault(axilEp, v.axilWriteSlave, v.axilReadSlave, AXI_RESP_DECERR_C);

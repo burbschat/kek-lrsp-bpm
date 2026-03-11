@@ -46,11 +46,10 @@ set_property C_DATA_DEPTH 8192 [get_debug_cores ${ilaName}]
 # TODO: I guess this really should be the axi clock but this gives timing
 # errors... Try to somehow use that clock I guess? Maybe it must be the axi
 # clock...
-# SetDebugCoreClk ${ilaName} {U_XVC/xvcClk156}
+SetDebugCoreClk ${ilaName} {U_XVC/xvcClk156}
 # SetDebugCoreClk ${ilaName} {U_App/axilClk}
 # SetDebugCoreClk ${ilaName} {U_RFDC/refClk}
 # SetDebugCoreClk ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClk}
-SetDebugCoreClk ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/clkIn}
 
 #######################
 ## Set the debug Probes
@@ -71,8 +70,8 @@ ConfigProbe ${ilaName} {U_EvrGty/rxData[*]}
 ConfigProbe ${ilaName} {U_EvrGty/rxDataK[*]}
 ConfigProbe ${ilaName} {U_EvrGty/rxUsrClk}
 # ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/clkOut[*]}
-ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/locked}
-ConfigProbe ${ilaName} {U_EvrGty/U_TXUSRCLK_PLL/locked}
+# ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/locked}
+# ConfigProbe ${ilaName} {U_EvrGty/U_TXUSRCLK_PLL/locked}
 ConfigProbe ${ilaName} {U_EvrGty/rxResetDone}
 ConfigProbe ${ilaName} {U_EvrGty/rxDispErr[*]}
 ConfigProbe ${ilaName} {U_EvrGty/rxDecErr[*]}
@@ -82,6 +81,7 @@ ConfigProbe ${ilaName} {U_EvrGty/resetGt}
 # Hard reset signal (stablerst or resetgt):
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/stableRst}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClkActive}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txUsrClkActive}
 
 
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rx8b10bEn}
@@ -93,6 +93,9 @@ ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteIsAligned}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteRealign}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDet}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPmaResetDone}
+
+# TODO: Check this one!
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCdrStable}
 
 ConfigProbe ${ilaName} {qsfpModPrs}
 ConfigProbe ${ilaName} {qsfpLpModeInt}
