@@ -1,5 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+use ieee.std_logic_arith.all;
 use ieee.numeric_std.all;
 
 library surf;
@@ -27,12 +29,12 @@ entity EvrGty is
         STABLE_CLK_F_HZ : integer := 156250000;  -- Used to time resets
 
         AXIL_BASE_ADDR_G : slv(31 downto 0);
-        AXIL_BASE_BOT_G  : natural range 1 to 32;
+        AXIL_BASE_BOT_G  : natural range 1 to 32
 
-        ----------------------------------------------------------------------------------------------
-        -- EVR Settings
-        ----------------------------------------------------------------------------------------------
-        TX_MIRROR_ENABLE_G : boolean := true
+     ----------------------------------------------------------------------------------------------
+     -- EVR Settings
+     ----------------------------------------------------------------------------------------------
+     -- TX_MIRROR_ENABLE_G : boolean := true
         );
     port (
         -- GT Clocking
@@ -55,8 +57,14 @@ entity EvrGty is
         evrRxResetDone  : out sl;
         evrRxUsrClk     : out sl;  -- user clock  = recovered clock (rx data sync. to this)
         -- evrRxMmcmLocked : in  sl;
-        -- Transceiver control signals
-        trxRequestLP    : out sl;       -- Request transceiver low power mode
+
+        -- QSFP transceiver control signals
+        qsfpModSelL : out sl;           -- Pull low for access over i2c!
+        qsfpResetL  : out sl;
+        qsfpModPrsL : in  sl;
+        qsfpIntL    : in  sl;
+        qsfpLpMode  : out sl;
+
         -- AXI-Lite DRP interface
         axilClk         : in  sl                     := '0';
         axilRst         : in  sl                     := '0';
@@ -88,12 +96,6 @@ architecture mapping of EvrGty is
     -- suffice, but for now use 16 as we have the room to do so.
     constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, AXIL_BASE_BOT_G, 16);
 
-    -- Aliases for axil signals for EVR_REG_INDEX_C
-    -- signal axilRegReadMaster  : AxiLiteReadMasterType  := AXI_LITE_READ_MASTER_INIT_C;
-    -- signal axilRegReadSlave   : AxiLiteReadSlaveType;
-    -- signal axilRegWriteMaster : AxiLiteWriteMasterType := AXI_LITE_WRITE_MASTER_INIT_C;
-    -- signal axilRegWriteSlave  : AxiLiteWriteSlaveType;
-
     signal resetGtSync : sl;
     signal gtHardReset : sl;
 
@@ -105,17 +107,12 @@ architecture mapping of EvrGty is
 
     signal rxUsrClk : sl;
     signal txUsrClk : sl;
-    -- signal rxUsrClkMmcm       : sl;     -- MMCM buffered clock
-    -- signal txUsrClkMmcm       : sl;
-    -- signal rxUsrClkMmcmLocked : sl;     -- MMCM locked signal
-    -- signal txUsrClkMmcmLocked : sl;
 
     signal rxUsrClkActive : sl;
     signal txUsrClkActive : sl;
 
     signal qpll1Locked : sl;            -- Locked signal of QPLL1 in GT IP Core
 
-    -- TODO: Use those as input to the decoder
     signal rxData    : slv(15 downto 0);
     signal rxDataK   : slv(1 downto 0);
     signal rxDispErr : slv(1 downto 0);
@@ -143,7 +140,6 @@ architecture mapping of EvrGty is
     attribute keep of rxData          : signal is "true";
     attribute keep of rxDataK         : signal is "true";
     attribute keep of rxUsrClk        : signal is "true";
-    -- attribute keep of rxUsrClkMmcmLocked : signal is "true";
     attribute keep of rxResetDone     : signal is "true";
     attribute keep of rxDispErr       : signal is "true";
     attribute keep of rxDecErr        : signal is "true";
@@ -157,7 +153,6 @@ architecture mapping of EvrGty is
     attribute keep of txData         : signal is "true";
     attribute keep of txDataK        : signal is "true";
     attribute keep of txUsrClk       : signal is "true";
-    -- attribute keep of txUsrClkMmcmLocked : signal is "true";
     attribute keep of txResetDone    : signal is "true";
     attribute keep of txPmaResetDone : signal is "true";
 
@@ -192,37 +187,95 @@ architecture mapping of EvrGty is
     attribute mark_debug of txUsrClkActive : signal is "true";
     attribute mark_debug of rxUsrClkActive : signal is "true";
 
+    type EvrTxModeType is (
+        RX_MIRROR,  -- Mirror rx 'as is' to tx (including commas)
+        DUMMY,                          -- Transmit dummy data and commas
+        SILENT                          -- Transmit nothing at all
+        );
 
     type RegType is record
-        loopback        : slv(2 downto 0);
-        dummyData       : slv(7 downto 0);
-        dummyDataComma  : slv(7 downto 0);
-        trxRequestLP    : sl;
-        txPolarity      : sl;
-        rxPolarity      : sl;
-        tx8b10bEn       : sl;
-        rx8b10bEn       : sl;
+        qsfpModSelL : sl;               -- Pull low for access over i2c!
+        qsfpResetL  : sl;
+        -- qsfpModPrsL : sl;
+        -- qsfpIntL    : sl;
+        qsfpLpMode  : sl;
+
+        -- txResetDone    : sl;
+        -- txPmaResetDone : sl;
+        -- txUsrClkActive : sl;
+        tx8b10bEn  : sl;
+        txPolarity : sl;
+
+        -- rxResetDone    : sl;
+        -- rxPmaResetDone : sl;
+        -- rxUsrClkActive : sl;
+        rx8b10bEn  : sl;
+        rxPolarity : sl;
+
+        -- rxCdrStable     : sl;
+        -- rxDispErr       : slv(1 downto 0);
+        -- rxDecErr        : slv(1 downto 0);
+        -- rxByteIsAligned : sl;
+        -- rxByteRealign   : sl;
+        -- rxCommaDet      : sl;
         rxCommaDetEn    : sl;
         rxMCommaAlignEn : sl;
         rxPCommaAlignEn : sl;
-        axilReadSlave   : AxiLiteReadSlaveType;
-        axilWriteSlave  : AxiLiteWriteSlaveType;
+
+        evrTxMode      : evrTxModeType;
+        evrTxModeReg   : slv(7 downto 0);
+        dummyData      : slv(7 downto 0);
+        dummyDataComma : slv(7 downto 0);
+
+        loopback : slv(2 downto 0);
+
+        axilReadSlave  : AxiLiteReadSlaveType;
+        axilWriteSlave : AxiLiteWriteSlaveType;
     end record RegType;
 
     constant REG_INIT_C : RegType := (
-        loopback        => "000",       -- 0b000 is normal operation
-        dummyData       => x"50",  -- Dummy data to transmit when no comma is transmitted
-        dummyDataComma  => x"BC",  -- Comma to insert when transmitting dummy data for testing
-        trxRequestLP    => '0',         -- Default is NOT low power
-        txPolarity      => '0',
-        rxPolarity      => '0',
-        tx8b10bEn       => '1',
-        rx8b10bEn       => '1',
+        -- QSFP control signals
+        -- Pull this signal low for access over i2c (address 0x50 as specified in
+        -- SFF-8636)! If I do not pull this low, there is still some EEPROM I can
+        -- write to/read from??? Not sure what is going on there...
+        qsfpModSelL => '0',             -- Default is selected!
+        qsfpResetL  => '1',
+        -- qsfpModPrsL => '0',
+        -- qsfpIntL    => '0',
+        qsfpLpMode  => '0',             -- Default is NOT low power
+
+        -- Reset related signals
+        -- txResetDone    => '0',
+        -- txPmaResetDone => '0',
+        -- txUsrClkActive => '0',
+        tx8b10bEn  => '1',
+        txPolarity => '0',  -- Set 1 to invert polarity (diff. pair swap)
+
+        -- rxResetDone    => '0',
+        -- rxPmaResetDone => '0',
+        -- rxUsrClkActive => '0',
+        rx8b10bEn  => '1',
+        rxPolarity => '0',  -- Set 1 to invert polarity (diff. pair swap)
+
+        -- rxCdrStable     => '0',
+        -- rxDispErr       => (others => '0'),
+        -- rxDecErr        => (others => '0'),
+        -- rxByteIsAligned => '0',
+        -- rxByteRealign   => '0',
+        -- rxCommaDet      => '0',
         rxCommaDetEn    => '1',
         rxMCommaAlignEn => '1',
         rxPCommaAlignEn => '1',
-        axilReadSlave   => AXI_LITE_READ_SLAVE_INIT_C,
-        axilWriteSlave  => AXI_LITE_WRITE_SLAVE_INIT_C);
+
+        evrTxMode      => SILENT,
+        evrTxModeReg   => (others => '0'),  -- Same es evrTxMode but as slv (required for register mapping)
+        dummyData      => x"50",  -- Dummy data to transmit when no comma is transmitted
+        dummyDataComma => x"BC",  -- Comma to insert when transmitting dummy data for testing
+
+        loopback => "000",              -- 0b000 is normal operation
+
+        axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
+        axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
 
     signal r   : RegType := REG_INIT_C;
     signal rin : RegType;
@@ -233,6 +286,12 @@ begin
     evrTxResetDone <= txResetDone;
 
     gtHardReset <= resetGtSync or stableRst;
+
+    -- Drive QSFP transceiver controls *output* signals according to registers
+    qsfpModSelL <= r.qsfpModSelL;
+    -- TODO: Do or with GT reset?
+    qsfpResetL  <= r.qsfpResetL;  -- QSPF reset (not the same as GTY reset!)
+    qsfpLpMode  <= r.qsfpLpMode;
 
     U_RstGtSync : entity surf.PwrUpRst
         generic map (
@@ -268,63 +327,6 @@ begin
     evrRxUsrClk <= rxUsrClk;
     evrTxUsrClk <= txUsrClk;
 
-    -- U_TxMirrorGen : if TX_MIRROR_ENABLE_G generate
-    --     -- Mirror rx to TX 'as is' for to allow for event receiver daisy chaining
-    --     txData  <= rxData;
-    --     txDataK <= rxDataK;             -- Don't forget the K character flags!
-    -- end generate U_TxMirrorGen;
-
-
-    -- MMCM (PLL sufficient?) to detect stable user clock of transceiver
-    -- U_RXUSRCLK_PLL : entity surf.ClockManagerUltraScale
-    --     generic map(
-    --         TPD_G              => TPD_G,
-    --         TYPE_G             => "MMCM",
-    --         INPUT_BUFG_G       => true,
-    --         FB_BUFG_G          => true,
-    --         RST_IN_POLARITY_G  => '1',
-    --         NUM_CLOCKS_G       => 1,
-    --         -- MMCM attributes
-    --         BANDWIDTH_G        => "OPTIMIZED",
-    --         CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
-    --         DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
-    --         CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
-    --         CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
-    --     port map(
-    --         -- Clock Input
-    --         clkIn     => rxUsrClk,
-    --         rstIn     => gtHardReset,
-    --         -- Clock Outputs
-    --         locked    => rxUsrClkMmcmLocked,
-    --         clkOut(0) => rxUsrClkMmcm,
-    --         -- Reset Outputs
-    --         rstOut(0) => open);
-    --
-    -- U_TXUSRCLK_PLL : entity surf.ClockManagerUltraScale
-    --     generic map(
-    --         TPD_G              => TPD_G,
-    --         TYPE_G             => "MMCM",
-    --         INPUT_BUFG_G       => true,
-    --         FB_BUFG_G          => true,
-    --         RST_IN_POLARITY_G  => '1',
-    --         NUM_CLOCKS_G       => 1,
-    --         -- MMCM attributes
-    --         BANDWIDTH_G        => "OPTIMIZED",
-    --         CLKIN_PERIOD_G     => 6.4,  -- 156.25MHz (Actually ignored in synthesis???)
-    --         DIVCLK_DIVIDE_G    => 1,    -- 156.25MHz = 156.25MHz/1
-    --         CLKFBOUT_MULT_F_G  => 10.0,  -- 1562.5MHz = 10.0 x 156.25MHz (see DS925 for vco range)
-    --         CLKOUT0_DIVIDE_F_G => 10.0)  -- 156.25MHz = 1562.5MHz/10.0
-    --     port map(
-    --         -- Clock Input
-    --         clkIn     => txUsrClk,
-    --         rstIn     => gtHardReset,
-    --         -- Clock Outputs
-    --         locked    => txUsrClkMmcmLocked,
-    --         clkOut(0) => txUsrClkMmcm,
-    --         -- Reset Outputs
-    --         rstOut(0) => open);
-
-
     ---------------------
     -- AXI-Lite Crossbar
     ---------------------
@@ -357,7 +359,7 @@ begin
             TPD_G => TPD_G
             )
         port map(
-            stableClk => stableClk,
+            stableClk => stableClk,  -- The core expects this to be < usrclk but it still seems to work fine with 156.25 which is > userclk
             stableRst => gtHardReset,
             qpll1Lock => qpll1Locked,
 
@@ -418,26 +420,57 @@ begin
             axilWriteSlave  => axilWriteSlaves(AXIL_DRP_INDEX_C)
             );
 
+
+    --------------------------
+    -- Event receiver decoding
+    --------------------------
+
+    -- Put this in a separate entity as perhaps depending on the application we
+    -- want to change the decoding but keept the GTY as is.
+    U_EvrDecoder : entity work.EvrDecoder
+        port map(
+            evrRxUsrClk  => rxUsrClk,
+            evrRxData    => rxData,
+            evrRxDataK   => rxDataK,
+            evrRxDispErr => rxDispErr,
+            evrRxDecErr  => rxDecErr
+            );
+
+
+    ----------------------
+    -- Transmit processing
+    ----------------------
+
     -- Generate some test data
-    TX_DUMMY_DATA : process(txUsrClk)
+    TX_PROC : process(txUsrClk)
         variable switch : boolean;
     begin
         if rising_edge(txUsrClk) then
-            -- Pull all lines low if reset asserted or tx not yet ready
-            if gtHardReset = '1' or txResetDone /= '1' then
+            -- Pull all lines low if reset asserted or tx not yet ready or TX set to silent
+            if gtHardReset = '1' or txResetDone /= '1' or r.evrTxMode = SILENT then
                 txData  <= (others => '0');
                 txDataK <= (others => '0');
-            elsif switch = true then
-                txData  <= r.dummyData & r.dummyDataComma;  -- Comma in lower 8 bits
-                txDataK <= "01";        -- Lower byte is comma
-                switch  := false;       -- Move to send only data state
-            else
-                txData  <= r.dummyData & r.dummyData;
-                txDataK <= "00";        -- Now commas here
-                switch  := true;        -- Move to send data + comma state
+            elsif r.evrTxMode = DUMMY then
+                -- Transmit dummy data with a comma every other tranmission
+                if switch = true then
+                    txData  <= r.dummyData & r.dummyDataComma;  -- Comma in lower 8 bits
+                    txDataK <= "01";    -- Lower byte is comma
+                    switch  := false;   -- Move to send only data state
+                else
+                    txData  <= r.dummyData & r.dummyData;
+                    txDataK <= "00";    -- Now commas here
+                    switch  := true;    -- Move to send data + comma state
+                end if;
+            elsif r.evrTxMode = RX_MIRROR then
+            -- TODO: This would require a fifo between rx/tx. Implement this if it is really necessary.
             end if;
         end if;
-    end process TX_DUMMY_DATA;
+    end process TX_PROC;
+
+
+    ---------------------
+    -- Register Interface
+    ---------------------
 
     -- Some static registers for testing
     U_AXIL_TEST_REG : entity work.AxilTestRegister
@@ -449,7 +482,23 @@ begin
             axilWriteSlave  => axilWriteSlaves(AXIL_TEST_INDEX_C)
             );
 
-    comb : process (axilReadMasters(EVR_REG_INDEX_C), axilWriteMasters(EVR_REG_INDEX_C), r) is
+    comb : process (
+        axilReadMasters(EVR_REG_INDEX_C), axilWriteMasters(EVR_REG_INDEX_C), r,
+        qsfpModPrsL,  -- Not sure if this is the smartes way to 'mirror' some signals to registers...
+        qsfpIntL,
+        txResetDone,
+        txPmaResetDone,
+        txUsrClkActive,
+        rxResetDone,
+        rxPmaResetDone,
+        rxUsrClkActive,
+        rxCdrStable,
+        rxDispErr,
+        rxDecErr,
+        rxByteIsAligned,
+        rxByteRealign,
+        rxCommaDet
+        ) is
         variable v      : RegType;
         variable axilEp : AxiLiteEndPointType;
     begin
@@ -468,18 +517,39 @@ begin
         -- Map the read registers
         -------------------------
 
-        axiSlaveRegister (axilEp, x"00", 0, v.loopback);   -- GTY loopback mode
-        axiSlaveRegister (axilEp, x"04", 0, v.dummyData);  -- Dummy data to transmit for testing
-        axiSlaveRegister (axilEp, x"08", 0, v.dummyDataComma);  -- Comma to insert when transmitting dummy data for testing
-        axiSlaveRegister (axilEp, x"0a", 0, v.trxRequestLP);  -- Transmitter low power request line state
-        axiSlaveRegister (axilEp, x"0c", 0, v.txPolarity);  -- GTY TX polarity
-        axiSlaveRegister (axilEp, x"0c", 1, v.rxPolarity);  -- GTY RX polarity
+        axiSlaveRegister (axilEp, x"00", 0, v.qsfpModSelL);
+        axiSlaveRegister (axilEp, x"00", 1, v.qsfpResetL);
+        axiSlaveRegisterR (axilEp, x"00", 2, qsfpModPrsL);
+        axiSlaveRegisterR (axilEp, x"00", 3, qsfpIntL);
+        axiSlaveRegister (axilEp, x"00", 4, v.qsfpLpMode);  -- Transmitter low power request line state
 
-        axiSlaveRegister (axilEp, x"10", 0, v.tx8b10bEn);  -- TX 8b10b decode enable
-        axiSlaveRegister (axilEp, x"10", 1, v.rx8b10bEn);  -- RX 8b10b decode enable
-        axiSlaveRegister (axilEp, x"14", 0, v.rxCommaDetEn);  -- GTY RX comma detection enable
-        axiSlaveRegister (axilEp, x"14", 2, v.rxMCommaAlignEn);  -- GTY RX align on minus comma enable
-        axiSlaveRegister (axilEp, x"14", 3, v.rxPCommaAlignEn);  -- GTY RX align on plus comma enable
+        axiSlaveRegisterR (axilEp, x"04", 0, txResetDone);
+        axiSlaveRegisterR (axilEp, x"04", 1, txPmaResetDone);
+        axiSlaveRegisterR (axilEp, x"04", 2, txUsrClkActive);  -- User interface TX clock ready, i.e. ready to transmit
+        axiSlaveRegister (axilEp, x"04", 3, v.tx8b10bEn);  -- TX 8b10b decode enable
+        axiSlaveRegister (axilEp, x"04", 4, v.txPolarity);  -- GTY TX polarity
+
+        axiSlaveRegisterR (axilEp, x"08", 0, rxResetDone);
+        axiSlaveRegisterR (axilEp, x"08", 1, rxPmaResetDone);
+        axiSlaveRegisterR (axilEp, x"08", 2, rxUsrClkActive);  -- User interface RX clock ready, i.e. ready to transmit
+        axiSlaveRegister (axilEp, x"08", 3, v.rx8b10bEn);  -- RX 8b10b decode enable
+        axiSlaveRegister (axilEp, x"08", 4, v.rxPolarity);  -- GTY RX polarity
+
+        axiSlaveRegisterR (axilEp, x"0c", 0, rxCdrStable);
+        axiSlaveRegisterR (axilEp, x"0c", 1, rxDispErr);   -- Two bit register
+        axiSlaveRegisterR (axilEp, x"0c", 3, rxDecErr);    -- Two bit register
+        axiSlaveRegisterR (axilEp, x"0c", 5, rxByteIsAligned);  -- Signals bytes are aligned
+        axiSlaveRegisterR (axilEp, x"0c", 6, rxByteRealign);  -- Strobed on byte realign
+        axiSlaveRegisterR (axilEp, x"0c", 7, rxCommaDet);  -- Strobed on comma detected
+        axiSlaveRegister (axilEp, x"0c", 8, v.rxCommaDetEn);  -- GTY RX comma detection enable
+        axiSlaveRegister (axilEp, x"0c", 9, v.rxMCommaAlignEn);  -- GTY RX align on minus comma enable
+        axiSlaveRegister (axilEp, x"0c", 10, v.rxPCommaAlignEn);  -- GTY RX align on plus comma enable
+        v.evrTxModeReg := conv_std_logic_vector(evrTxModeType'pos(r.evrTxMode), r.evrTxModeReg'length);
+        axiSlaveRegister (axilEp, x"10", 0, v.evrTxModeReg);  -- Mode for transmitting
+        axiSlaveRegister (axilEp, x"10", 8, v.dummyData);  -- Dummy data to transmit for testing
+        axiSlaveRegister (axilEp, x"10", 16, v.dummyDataComma);  -- Comma to insert when transmitting dummy data for testing
+
+        axiSlaveRegister (axilEp, x"14", 0, v.loopback);  -- GTY loopback mode
 
         -- Closeout the transaction
         axiSlaveDefault(axilEp, v.axilWriteSlave, v.axilReadSlave, AXI_RESP_DECERR_C);
@@ -487,9 +557,12 @@ begin
         ----------------------------------------------------------------------
 
         -- Outputs
+
+        -- Re-assign evrTxMode according to the value in v to update if there was a write to the corresponding register
+        v.evrTxMode := evrTxModeType'val(conv_integer(v.evrTxModeReg));
+
         axilWriteSlaves(EVR_REG_INDEX_C) <= r.axilWriteSlave;
         axilReadSlaves(EVR_REG_INDEX_C)  <= r.axilReadSlave;
-        trxRequestLP                     <= v.trxRequestLP;
 
         -- Register the variable for next clock cycle
         rin <= v;

@@ -121,34 +121,12 @@ architecture top_level of KekLrspBpmBt is
    signal xvcClk156 : sl;
    signal xvcRst156 : sl;
 
-   signal qsfpModPrs    : sl;
-   signal qsfpLpModeInt : sl;
-   signal qsfpReset     : sl;
-
-   attribute keep                        : string;
-   attribute mark_debug                  : string;
-   attribute keep of qsfpModPrs          : signal is "true";
-   attribute keep of qsfpLpModeInt       : signal is "true";
-   attribute keep of qsfpReset           : signal is "true";
-   attribute mark_debug of qsfpModPrs    : signal is "true";
-   attribute mark_debug of qsfpLpModeInt : signal is "true";
-   attribute mark_debug of qsfpReset     : signal is "true";
-
 begin
 
    userLed(0) <= not(axilRst);
    userLed(1) <= not(dmaRst);
    userLed(2) <= not(dspRst);
    userLed(3) <= '1';
-
-   qsfpModPrs <= not qsfpModPrsL;  -- External signal pulled low if module present
-   qsfpLpMode <= qsfpLpModeInt;
-   qsfpResetL <= not qsfpReset;
-
-   -- Pull this signal low for access over i2c (address 0x50 as specified in
-   -- SFF-8636)! If I do not pull this low, there is still some EEPROM I can
-   -- write to/read from??? Not sure what is going on there...
-   qsfpModSelL <= '0';
 
    -- This did not work. Not sure why and it's difficult to debug the debugging tool...
    -- TODO: Consider using a PLL (MMCM) for qsfpSysClk as well?
@@ -298,18 +276,15 @@ begin
 
    -- EVR GTY reset
    -- Keep in reset when no qsfp module present (or axil reset asserted)
-   rstEvrGty <= axilRst or not qsfpModPrs;
-
-   -- qsfpLpModeInt <= '0';                   -- Not in low power mode
-   qsfpReset <= axilRst;  -- QSPF reset (not the same as GTY reset!)
+   rstEvrGty <= axilRst or qsfpModPrsL;
 
    U_EvrGty : entity work.EvrGty
       generic map(
          TPD_G              => TPD_G,
          AXIL_BASE_ADDR_G   => AXIL_CONFIG_C(GT_INDEX_C).baseAddr,
          AXIL_BASE_BOT_G    => AXIL_CONFIG_C(GT_INDEX_C).addrBits,
-         STABLE_CLK_F_HZ    => 156250000,  -- 156.250 MHz
-         TX_MIRROR_ENABLE_G => false
+         STABLE_CLK_F_HZ    => 156250000  -- 156.250 MHz
+         -- TX_MIRROR_ENABLE_G => false
          )
       port map(
          stableClk       => qsfpSysClk,
@@ -326,7 +301,15 @@ begin
          evrRxResetAsync => '0',
          evrRxResetDone  => open,
          evrRxUsrClk     => open,
-         trxRequestLP    => qsfpLpModeInt,
+
+         -- QSFP transceiver control signals
+         qsfpModSelL     => qsfpModSelL,
+         qsfpResetL      => qsfpResetL,
+         qsfpModPrsL     => qsfpModPrsL,
+         qsfpIntL        => qsfpIntL,
+         qsfpLpMode      => qsfpLpMode,
+
+         -- AXI-Lite DRP interface
          axilClk         => axilClk,
          axilRst         => axilRst,
          axilReadMaster  => axilReadMasters(GT_INDEX_C),
