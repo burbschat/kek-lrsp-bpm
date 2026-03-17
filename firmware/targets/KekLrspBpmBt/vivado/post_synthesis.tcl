@@ -97,9 +97,9 @@ ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPmaResetDone}
 # TODO: Check this one!
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCdrStable}
 
-ConfigProbe ${ilaName} {qsfpModPrs}
-ConfigProbe ${ilaName} {qsfpLpModeInt}
-ConfigProbe ${ilaName} {qsfpReset}
+# ConfigProbe ${ilaName} {qsfpModPrs}
+# ConfigProbe ${ilaName} {qsfpLpModeInt}
+# ConfigProbe ${ilaName} {qsfpReset}
 
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/tx8b10bEn}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPmaResetDone}
