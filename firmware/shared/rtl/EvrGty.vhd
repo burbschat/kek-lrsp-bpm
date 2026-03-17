@@ -29,12 +29,9 @@ entity EvrGty is
         STABLE_CLK_F_HZ : integer := 156250000;  -- Used to time resets
 
         AXIL_BASE_ADDR_G : slv(31 downto 0);
-        AXIL_BASE_BOT_G  : natural range 1 to 32
+        AXIL_BASE_BOT_G  : natural range 1 to 32;
 
-     ----------------------------------------------------------------------------------------------
-     -- EVR Settings
-     ----------------------------------------------------------------------------------------------
-     -- TX_MIRROR_ENABLE_G : boolean := true
+        N_TRGS_G : integer := 16
         );
     port (
         -- GT Clocking
@@ -65,6 +62,9 @@ entity EvrGty is
         qsfpIntL    : in  sl;
         qsfpLpMode  : out sl;
 
+        -- Trigger outputs
+        trgs : out slv(N_TRGS_G - 1 downto 0);
+
         -- AXI-Lite DRP interface
         axilClk         : in  sl                     := '0';
         axilRst         : in  sl                     := '0';
@@ -77,11 +77,12 @@ end entity EvrGty;
 
 architecture mapping of EvrGty is
 
-    constant AXIL_TEST_INDEX_C : natural := 0;
-    constant AXIL_DRP_INDEX_C  : natural := 1;
-    constant EVR_REG_INDEX_C   : natural := 2;
+    constant AXIL_TEST_INDEX_C   : natural := 0;
+    constant AXIL_DRP_INDEX_C    : natural := 1;
+    constant EVR_REG_INDEX_C     : natural := 2;
+    constant EVR_DEC_REG_INDEX_C : natural := 3;
 
-    constant NUM_AXIL_MASTERS_C : positive := 3;
+    constant NUM_AXIL_MASTERS_C : positive := 4;
 
     signal axilReadMasters  : AxiLiteReadMasterArray(NUM_AXIL_MASTERS_C-1 downto 0);
     signal axilReadSlaves   : AxiLiteReadSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0)  := (others => AXI_LITE_READ_SLAVE_EMPTY_DECERR_C);
@@ -130,6 +131,8 @@ architecture mapping of EvrGty is
 
     signal rxCdrStable : sl;
 
+    signal trgsInt : slv(N_TRGS_G - 1 downto 0);
+
     attribute keep       : string;
     attribute mark_debug : string;
 
@@ -159,6 +162,8 @@ architecture mapping of EvrGty is
     attribute keep of txUsrClkActive : signal is "true";
     attribute keep of rxUsrClkActive : signal is "true";
 
+    attribute keep of trgsInt : signal is "true";
+
     attribute mark_debug of qpll1Locked : signal is "true";
     attribute mark_debug of resetGtSync : signal is "true";
     attribute mark_debug of gtHardReset : signal is "true";
@@ -186,6 +191,8 @@ architecture mapping of EvrGty is
 
     attribute mark_debug of txUsrClkActive : signal is "true";
     attribute mark_debug of rxUsrClkActive : signal is "true";
+
+    attribute mark_debug of trgsInt : signal is "true";
 
     type EvrTxModeType is (
         RX_MIRROR,  -- Mirror rx 'as is' to tx (including commas)
@@ -428,13 +435,31 @@ begin
     -- Put this in a separate entity as perhaps depending on the application we
     -- want to change the decoding but keept the GTY as is.
     U_EvrDecoder : entity work.EvrDecoder
+        generic map(
+            TPD_G    => TPD_G,
+            N_TRGS_G => N_TRGS_G
+            )
         port map(
-            evrRxUsrClk  => rxUsrClk,
-            evrRxData    => rxData,
-            evrRxDataK   => rxDataK,
-            evrRxDispErr => rxDispErr,
-            evrRxDecErr  => rxDecErr
+            -- Serial data input
+            usrClk  => rxUsrClk,
+            data    => rxData,
+            dataK   => rxDataK,
+            dispErr => rxDispErr,
+            decErr  => rxDecErr,
+
+            -- Trigger outputs
+            trgs => trgsInt,
+
+            -- AXI-Lite register interface
+            axilClk         => axilClk,
+            axilRst         => axilRst,
+            axilReadMaster  => axilReadMasters(EVR_DEC_REG_INDEX_C),
+            axilReadSlave   => axilReadSlaves(EVR_DEC_REG_INDEX_C),
+            axilWriteMaster => axilWriteMasters(EVR_DEC_REG_INDEX_C),
+            axilWriteSlave  => axilWriteSlaves(EVR_DEC_REG_INDEX_C)
             );
+
+    trgs <= trgsInt;
 
 
     ----------------------
