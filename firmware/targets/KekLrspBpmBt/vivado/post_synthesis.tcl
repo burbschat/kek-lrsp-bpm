@@ -125,6 +125,7 @@ ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/r[trgCountsResets]*}
 #ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/trgCountsResets/*}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/U_SyncV_Inst/dataIn*}
 ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/U_SyncV_Inst/dataOut*}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/trgs*}
 
 
 

@@ -61,6 +61,7 @@ class ReadoutCtrl(pr.Device):
             enum         = {
                 0x0: 'irigTrig',
                 0x1: 'irigComp',
+                0x2: 'evr',
             },
         ))
 

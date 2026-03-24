@@ -82,6 +82,8 @@ architecture top_level of KekLrspBpmBt is
    constant APP_INDEX_C  : natural := 2;
    constant GT_INDEX_C   : natural := 3;
 
+   constant EVR_N_TRGS_C : integer := 16;
+
    constant NUM_AXIL_MASTERS_C : positive := 4;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, APP_ADDR_OFFSET_C, 31, 28);
@@ -120,6 +122,8 @@ architecture top_level of KekLrspBpmBt is
 
    signal xvcClk156 : sl;
    signal xvcRst156 : sl;
+
+   signal evrTrgs : slv(EVR_N_TRGS_C - 1 downto 0);
 
 begin
 
@@ -280,16 +284,17 @@ begin
 
    U_EvrGty : entity work.EvrGty
       generic map(
-         TPD_G              => TPD_G,
-         AXIL_BASE_ADDR_G   => AXIL_CONFIG_C(GT_INDEX_C).baseAddr,
-         AXIL_BASE_BOT_G    => AXIL_CONFIG_C(GT_INDEX_C).addrBits,
-         STABLE_CLK_F_HZ    => 156250000  -- 156.250 MHz
-         -- TX_MIRROR_ENABLE_G => false
+         TPD_G            => TPD_G,
+         AXIL_BASE_ADDR_G => AXIL_CONFIG_C(GT_INDEX_C).baseAddr,
+         AXIL_BASE_BOT_G  => AXIL_CONFIG_C(GT_INDEX_C).addrBits,
+         STABLE_CLK_F_HZ  => 156250000,  -- 156.250 MHz
+         N_TRGS_G         => EVR_N_TRGS_C
+       -- TX_MIRROR_ENABLE_G => false
          )
       port map(
          stableClk       => qsfpSysClk,
          stableRst       => '0',
-         resetGt         => rstEvrGty,     -- Hard reset
+         resetGt         => rstEvrGty,   -- Hard reset
          gtRefClk        => qsfpRefClk,
          evrGtTxP        => qsfpGtTxP(0),
          evrGtTxN        => qsfpGtTxN(0),
@@ -303,11 +308,11 @@ begin
          evrRxUsrClk     => open,
 
          -- QSFP transceiver control signals
-         qsfpModSelL     => qsfpModSelL,
-         qsfpResetL      => qsfpResetL,
-         qsfpModPrsL     => qsfpModPrsL,
-         qsfpIntL        => qsfpIntL,
-         qsfpLpMode      => qsfpLpMode,
+         qsfpModSelL => qsfpModSelL,
+         qsfpResetL  => qsfpResetL,
+         qsfpModPrsL => qsfpModPrsL,
+         qsfpIntL    => qsfpIntL,
+         qsfpLpMode  => qsfpLpMode,
 
          -- AXI-Lite DRP interface
          axilClk         => axilClk,
@@ -315,7 +320,10 @@ begin
          axilReadMaster  => axilReadMasters(GT_INDEX_C),
          axilReadSlave   => axilReadSlaves(GT_INDEX_C),
          axilWriteMaster => axilWriteMasters(GT_INDEX_C),
-         axilWriteSlave  => axilWriteSlaves(GT_INDEX_C)
+         axilWriteSlave  => axilWriteSlaves(GT_INDEX_C),
+
+         -- Trigger oututs
+         trgs => evrTrgs
          );
 
    --------------
@@ -334,6 +342,7 @@ begin
          -- Trigger Inputs
          trigsIn(0)      => irigTrigOut,
          trigsIn(1)      => irigCompOut,
+         trigsIn(2)      => evrTrgs(0),
          -- ADC/DAC Interface (dspClk domain)
          dspClk          => dspClk,
          dspRst          => dspRst,

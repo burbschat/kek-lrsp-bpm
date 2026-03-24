@@ -11,6 +11,8 @@ class EvrDecoder(pr.Device):
 
         self.n_trgs = n_trgs
 
+        self.reset_vars = {}
+
         # Must be set to match firmware!
         self.DISTR_BUS_BITS_IDX_C  = 1;  # Upper 8
         self.EVENT_CODE_BITS_IDX_C = 0;  # Lower 8
@@ -101,12 +103,22 @@ class EvrDecoder(pr.Device):
             # values from other bit offsets. I.e. if I write 1 to offset 0 then
             # 1 on the second write it actually writes 0b0011 instead of 0b0010
             # as I'd expect...
-            self.add(pr.RemoteVariable(
-                name         = f'trg{i}Reset',
+            reset_var = pr.RemoteVariable(
+                name         = f'trg{i}ResetReg',
                 description  = f'Reset trigger {i} counter',
                 offset       = 0x8 + ((self.n_trgs - 1) // 4) * 4 + 0x4 + (self.n_trgs - 1) * 4 + 0x4 + (i // 32) * 4,
                 bitOffset    = i % 32,
                 bitSize      = 1,
                 mode         = 'WO',
-                hidden       = False,
-            ))
+                hidden       = True,
+            )
+
+            self.reset_vars[i] = reset_var
+            self.add(reset_var)
+
+            @self.command(name=f'trg{i}Reset')
+            def foo(reset_var_ref=reset_var):
+                # Workaround for set values ending up sticky...
+                # TODO: Find a better way?
+                reset_var_ref.set(1)
+                reset_var_ref.set(0)

@@ -15,7 +15,7 @@ entity ReadoutCtrl is
         TPD_G : time := 1 ns);
     port (
         -- Trigger Ports
-        trigsIn         : in  slv(1 downto 0);  -- Multiple trigger sources, select one using trigInSelIdx
+        trigsIn         : in  slv(2 downto 0);  -- Multiple trigger sources, select one using trigInSelIdx
         ringBufTrigOut  : out sl;       -- To ring buffer
         -- DSP Interface
         dspClk          : in  sl;
@@ -51,7 +51,7 @@ architecture rtl of ReadoutCtrl is
         deglitchLen       : slv(11 downto 0);
         -- Trigger input signals
         trigInPolarity    : sl;
-        trigsIn           : slv(1 downto 0);  -- All possible trigger sources
+        trigsIn           : slv(2 downto 0);  -- All possible trigger sources
         trigInSel         : sl;               -- Actually used trigger source
         trigInSelIdx      : slv(1 downto 0);
         -- Trigger control
