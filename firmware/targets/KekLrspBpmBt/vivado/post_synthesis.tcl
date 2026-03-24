@@ -119,6 +119,17 @@ ConfigProbe ${ilaName} {U_EvrGty/gtTxUserResetSync}
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxOutClk}
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txOutClk}
 
+# Before synchronizer
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/r[trgCountsResets]*}
+# After synchronizer
+#ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/trgCountsResets/*}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/U_SyncV_Inst/dataIn*}
+ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/U_SyncV_Inst/dataOut*}
+
+
+
+
+
 ##########################
 ## Write the port map file
 ##########################

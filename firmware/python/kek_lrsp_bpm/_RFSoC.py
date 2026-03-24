@@ -31,5 +31,5 @@ class RFSoC(pr.Device):
         ))
 
         self.add(rfsoc.EvrGty(
-            offset     = 0xB002_0000,
+            offset     = 0xB000_0000,
         ))

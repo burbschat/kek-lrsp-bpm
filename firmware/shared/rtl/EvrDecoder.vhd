@@ -18,6 +18,7 @@ use work.AppPkg.all;
 -- - How to output triggers? Could have
 --    - some fixed, named outputs and perhaps a register that sets the map
 --      between those/event codes? + raw event code? I guess that makes sense...
+-- - Perhaps add counters for each trigger line?
 
 entity EvrDecoder is
     generic (
@@ -59,11 +60,19 @@ architecture rtl of EvrDecoder is
     signal eventCodeInt : slv(7 downto 0);
     signal distrBusInt  : slv(7 downto 0);  -- Apparently every other transmission might be a 'shared data' one, but no idea how to tell those apart.
 
+    -- Counters incremented on trigger of a given trigger line. Both
+    -- synchronous to usr clock NOT axil clock!
+    signal trgCounts       : Slv32Array(N_TRGS_G - 1 downto 0) := (others => (others => '0'));
+    signal trgCountsResets : slv(N_TRGS_G - 1 downto 0);
+
     type RegType is record
         ignoreIfK   : slv (1 downto 0);
         ignoreIfErr : slv (1 downto 0);
 
-        trgsEventMap : Slv8Array(N_TRGS_G downto 0);
+        -- Map storing event code corresponding to each trigger line
+        trgsEventMap : Slv8Array(N_TRGS_G - 1 downto 0);
+
+        trgCountsResets : slv(N_TRGS_G - 1 downto 0);
 
         axilReadSlave  : AxiLiteReadSlaveType;
         axilWriteSlave : AxiLiteWriteSlaveType;
@@ -74,6 +83,8 @@ architecture rtl of EvrDecoder is
         ignoreIfErr => (others => '1'),  -- Ignore if error by default
 
         trgsEventMap => (others => (others => '0')),
+
+        trgCountsResets => (others => '0'),
 
         axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
         axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
@@ -98,12 +109,14 @@ begin
         variable distrBusVar  : slv(7 downto 0);
         variable eventCodeVar : slv(7 downto 0);
         variable trgsVar      : slv(N_TRGS_G - 1 downto 0);
+        variable newTrgCounts : Slv32Array(N_TRGS_G - 1 downto 0);
     begin
         if rising_edge(usrClk) then
             -- Initialize variables
             dataGood     := (others => '0');
             eventCodeVar := (others => '0');
             trgsVar      := (others => '0');
+            newTrgCounts := trgCounts;  -- Init with current counts, later reset or increment, then assign back to signal
 
             -- Do same checks for upper (distributed bus) and lower (event code) bits
             for i in 0 to 1 loop
@@ -122,8 +135,21 @@ begin
                 -- we might want to use it.
 
                 -- Update eventCode signal, but only if new good data received
-                distrBusInt <= eventCodeVar;
+                distrBusInt <= distrBusVar;
             end if;
+
+            -- Trigger counts reset
+            -- Could have this before or after the event code check.
+            -- For now, before the check so that even in the reset
+            -- cycle we can count a trigger if it occurs. This should
+            -- be the more consistent choice as adding trigger counts
+            -- between resets is ensured to actually equal the number
+            -- of total triggers.
+            for i in 0 to N_TRGS_G - 1 loop
+                if trgCountsResets(i) = '1' then
+                    newTrgCounts(i) := (others => '0');  -- Use variable to control assignment order
+                end if;
+            end loop;
 
             if dataGood(EVENT_CODE_BITS_IDX_C) = '1' then
                 eventCodeVar := data(7 + EVENT_CODE_BITS_IDX_C * 8 downto 0 + EVENT_CODE_BITS_IDX_C * 8);
@@ -136,13 +162,18 @@ begin
                 -- axil process?
                 for i in 0 to N_TRGS_G - 1 loop
                     if r.trgsEventMap(i) = eventCodeVar then
-                        trgsVar(i) := '1';
+                        trgsVar(i)      := '1';
+                        newTrgCounts(i) := newTrgCounts(i) + 1;  -- Increase corresponding counter
                     end if;
                 end loop;
 
+                -- TODO: I guess that assumes that lines never stay high in idle? Maybe not a true assumption here...
                 -- Update eventCode signal, but only if new good data received
                 eventCodeInt <= eventCodeVar;
             end if;
+
+            -- Update counters of which some may have been reset or incremented
+            trgCounts    <= newTrgCounts;
 
             -- Assign trigger outputs. Do this every time as we want to reset them
             -- if no event code matched (strobe)
@@ -151,13 +182,34 @@ begin
         end if;
     end process DEC_PROC;
 
+
+    -- Synchronize counter reset from axi clock domain (register interface) to usr clock domain.
+    -- Use one-shot synchronizer to make sure we don't accidentally keep resets on usr clock side
+    -- high for multiple clock cycles which could lead to counts being lost if we keep a slow
+    -- tally.
+    -- TODO: The counters itself should also be synchronized? Not catching a signal
+    -- as for reset strobes should be no problem but perhaps reading it during a transition
+    -- might be? But how would the synchronizer resolve such an issue to begin with...
+    U_SyncV_Inst : entity surf.SynchronizerOneShotVector
+        generic map(
+            TPD_G   => TPD_G,
+            WIDTH_G => N_TRGS_G)
+        port map(
+            clk     => usrClk,
+            dataIn  => r.trgCountsResets,
+            dataOut => trgCountsResets);
+
+
     -- AXI-Lite register interface processes
-    comb : process(axilReadMaster, axilWriteMaster, r, distrBusInt, eventCodeInt)
+    comb : process(axilReadMaster, axilWriteMaster, r, distrBusInt, eventCodeInt, trgCounts)
         variable v      : RegType;
         variable axilEp : AxiLiteEndPointType;
     begin
         -- Latch the current value
         v := r;
+
+        -- Reset strobes
+        v.trgCountsResets := (others => '0');
 
         ----------------------------------------------------------------------
         --                AXI-Lite Register Logic
@@ -182,6 +234,10 @@ begin
         for i in 0 to N_TRGS_G - 1 loop
             -- TODO: Check if integer division works as intended!
             axiSlaveRegister (axilEp, x"08" + conv_std_logic_vector((i / 4) * 4, 8), (i * 8) mod 32, v.trgsEventMap(i));
+            -- Start at final 32 bit register of event to trigger mapping plus one register (offset by 4)
+            axiSlaveRegisterR (axilEp, x"08" + conv_std_logic_vector(((N_TRGS_G - 1) / 4) * 4, 8) + x"04" + i * 4, 0, trgCounts(i));
+            -- Ok this becomes silly at this point... Just wanted to see how far I can take this. I'm impressed if this works to begin with...
+            axiSlaveRegister (axilEp, x"08" + conv_std_logic_vector(((N_TRGS_G - 1) / 4) * 4, 8) + x"04" + (N_TRGS_G - 1) * 4 + x"04" + (i / 32) * 4, i mod 32, v.trgCountsResets(i));
         end loop;
 
         -- Closeout the transaction

@@ -77,12 +77,11 @@ end entity EvrGty;
 
 architecture mapping of EvrGty is
 
-    constant AXIL_TEST_INDEX_C   : natural := 0;
-    constant AXIL_DRP_INDEX_C    : natural := 1;
-    constant EVR_REG_INDEX_C     : natural := 2;
-    constant EVR_DEC_REG_INDEX_C : natural := 3;
+    constant EVR_REG_INDEX_C     : natural := 0; -- Registers defined in this file, if possible no offset
+    constant EVR_DEC_REG_INDEX_C : natural := 1;
+    constant AXIL_DRP_INDEX_C    : natural := 2;
 
-    constant NUM_AXIL_MASTERS_C : positive := 4;
+    constant NUM_AXIL_MASTERS_C : positive := 3;
 
     signal axilReadMasters  : AxiLiteReadMasterArray(NUM_AXIL_MASTERS_C-1 downto 0);
     signal axilReadSlaves   : AxiLiteReadSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0)  := (others => AXI_LITE_READ_SLAVE_EMPTY_DECERR_C);
@@ -496,16 +495,6 @@ begin
     ---------------------
     -- Register Interface
     ---------------------
-
-    -- Some static registers for testing
-    U_AXIL_TEST_REG : entity work.AxilTestRegister
-        port map(
-            axilClk         => axilClk,
-            axilReadMaster  => axilReadMasters(AXIL_TEST_INDEX_C),
-            axilReadSlave   => axilReadSlaves(AXIL_TEST_INDEX_C),
-            axilWriteMaster => axilWriteMasters(AXIL_TEST_INDEX_C),
-            axilWriteSlave  => axilWriteSlaves(AXIL_TEST_INDEX_C)
-            );
 
     comb : process (
         axilReadMasters(EVR_REG_INDEX_C), axilWriteMasters(EVR_REG_INDEX_C), r,
