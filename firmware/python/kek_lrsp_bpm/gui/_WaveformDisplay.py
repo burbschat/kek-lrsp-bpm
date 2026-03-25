@@ -90,7 +90,7 @@ class WaveformDisplay(PyDMFrame):
         self,
         parent=None,
         init_channel=None,
-        nodePath="AmpFaultProcessor",
+        nodePath="SoftwarePositionCalculation",
         waveformNodeName="WaveformData",
         background=[0, 0, 0, 255],
         minimumWidth=10,
