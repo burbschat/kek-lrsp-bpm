@@ -64,6 +64,7 @@ class EvrDecoder(pr.Device):
             bitOffset    = 0,
             bitSize      = 8,
             mode         = 'RO',
+            pollInterval = 0.1,
             hidden       = False,
         ))
 
@@ -74,6 +75,7 @@ class EvrDecoder(pr.Device):
             bitOffset    = 8,
             bitSize      = 8,
             mode         = 'RO',
+            pollInterval = 0.1,
             hidden       = False,
         ))
 
