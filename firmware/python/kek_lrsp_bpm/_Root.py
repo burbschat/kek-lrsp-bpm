@@ -38,6 +38,7 @@ class Root(pr.Root):
         defaultFile="",
         lmkConfig="config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt",
         lmxConfig="config/lmx/HexRegisterValues.txt",
+        defaultClkSource="ext",
         signalMapsIndexFile="config/SignalMaps/SignalMapsIndex.json",
         sampleRate=5.0e9,  # Units of Hz, depends on PLL config
         zmqSrvPort=9099,  # Set to zero if dynamic (instead of static)
@@ -64,6 +65,8 @@ class Root(pr.Root):
             self.lmkConfig = lmkConfig
             self.lmxConfig = lmxConfig
             self.signalMapsIndexFile = signalMapsIndexFile
+
+        self.defaultClkSource = defaultClkSource
 
         # File writer
         self.dataWriter = pr.utilities.fileio.StreamWriter(name="DataWriter")
@@ -202,6 +205,16 @@ class Root(pr.Root):
 
         # Initialize the LMK/LMX Clock chips
         self.Hardware.InitClock(lmkConfig=self.lmkConfig, lmxConfig=[self.lmxConfig])
+
+        # This DOES technically depend on the LMK configuration to be such that
+        # clock select via the GPIO pin is allowed, but all configs used for
+        # this application should be such that this is possible.
+        if self.defaultClkSource == "ext":
+            self.Hardware.GpioPs.LMK_CLK_IN_SEL0_OUT.set(0)
+        elif self.defaultClkSource == "int":
+            self.Hardware.GpioPs.LMK_CLK_IN_SEL0_OUT.set(1)
+        else:
+            raise ValueError(f"Invalid clock source: {self.clkSource}")
 
         print("Wait for DSP Clock to be stable")
         self.RFSoC.AxiSocCore.DspRstWait()
