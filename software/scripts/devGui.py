@@ -78,6 +78,7 @@ if __name__ == "__main__":
         "linacrf": {"file": "config/lmk/HexRegisterValues_CLKin0-114MHz24Approx.txt", "out_f_MHz": 514.08},
         "linacrf_half": {"file": "config/lmk/HexRegisterValues_CLKin0-57MHz12Approx.txt", "out_f_MHz": 514.08},
         "oc520": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz_OC520MHz.txt", "out_f_MHz": 520},
+        "linacrf_gtyloopback": {"file": "config/lmk/HexRegisterValues_CLKin0-571MHz428GTYApprox.txt", "out_f_MHz": 514.08},
     }
 
     parser.add_argument(

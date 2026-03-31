@@ -14,6 +14,9 @@
 
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+use ieee.std_logic_arith.all;
+use ieee.numeric_std.all;
 
 library surf;
 use surf.StdRtlPkg.all;
@@ -36,6 +39,7 @@ entity KekLrspBpmBt is
    port (
       -- System Ports
       userLed     : out   slv(3 downto 0);
+      pmod        : inout Slv8Array(1 downto 0);
       -- Trigger Inputs
       irigTrigOut : inout sl;  -- Trigger input from 1PPS SMA (via schmitt trigger)
       irigCompOut : inout sl;  -- Trigger input from 1PPS SMA (via comparator)
@@ -118,7 +122,19 @@ architecture top_level of KekLrspBpmBt is
 
    signal qsfpSysClk : sl;
 
-   signal rstEvrGty : sl;
+   signal rstEvrGty               : sl;
+   signal evrRxUsrClk             : sl;
+   signal evrRxUsrClkBuff         : sl;
+   signal evrToLmkClkMmcm         : sl;
+   signal evrToLmkClkMmcmDivN     : sl;
+   signal evrToLmkClkMmcmDivNOddr : sl;
+   signal divCounter              : slv(15 downto 0);
+   constant DIV_COUNTER_PRESET_C  : slv(15 downto 0) := conv_std_logic_vector(4, divCounter'length);
+
+   attribute keep       : string;
+   attribute mark_debug : string;
+   -- attribute mark_debug of evrRxUsrClkBuffODDR : signal is "true";
+   -- attribute keep of evrRxUsrClkBuffODDR       : signal is "true";
 
    signal xvcClk156 : sl;
    signal xvcRst156 : sl;
@@ -130,7 +146,82 @@ begin
    userLed(0) <= not(axilRst);
    userLed(1) <= not(dmaRst);
    userLed(2) <= not(dspRst);
-   userLed(3) <= '1';
+   -- Just to try if I can map clock to physical output...
+   -- userLed(3) <= '1';
+
+   -- This actually appears to work to route the clock to an IO pin
+   BUFG_UsrClk : BUFG
+      port map(
+         I => evrRxUsrClk,
+         O => evrRxUsrClkBuff
+         );
+
+   U_EvrUsrClk_PLL : entity surf.ClockManagerUltraScale
+      generic map(
+         TPD_G              => TPD_G,
+         TYPE_G             => "MMCM",
+         INPUT_BUFG_G       => true,
+         FB_BUFG_G          => true,
+         RST_IN_POLARITY_G  => '1',
+         NUM_CLOCKS_G       => 1,
+         -- MMCM attributes
+         BANDWIDTH_G        => "OPTIMIZED",
+         CLKIN_PERIOD_G     => 1/0.11424,  -- 114.24MHz (Actually ignored in synthesis???)
+         DIVCLK_DIVIDE_G    => 5,       -- 22.848MHz = 114.24MHz/5
+         CLKFBOUT_MULT_F_G  => 50.0,  -- 1142.40MHz = 50.0 x 22.848MHz (see DS925 for vco range)
+         CLKOUT0_DIVIDE_F_G => 100.0)   -- 11.424MHz = 1142.40MHz/100
+      port map(
+         -- Clock Input
+         clkIn     => evrRxUsrClkBuff,  -- In this firmware axiClk should be 250MHz
+         rstIn     => axilRst,  -- TODO: Prepare separate reset for GTY maybe?
+         -- Clock Outputs
+         clkOut(0) => evrToLmkClkMmcm,
+         -- Reset Outputs
+         rstOut(0) => open);
+
+   EVR2LMK_CLK_DIV_PROC : process(evrToLmkClkMmcm, dspRst)
+   begin
+      if dspRst = '1' then
+         divCounter          <= DIV_COUNTER_PRESET_C;
+         evrToLmkClkMmcmDivN <= '0';
+      elsif rising_edge(evrToLmkClkMmcm) then
+         if divCounter = 0 then
+            divCounter          <= DIV_COUNTER_PRESET_C - 1;
+            evrToLmkClkMmcmDivN <= not evrToLmkClkMmcmDivN;
+         else
+            divCounter <= divCounter - 1;
+         end if;
+      end if;
+   end process;
+
+   -- Perhaps no longer needed if we do above process but jitter might be worse?
+   ODDR_inst : ODDR
+      generic map(
+         -- Vivado complaints that SAME_EDGE/ASYNC are only possible options here
+         DDR_CLK_EDGE => "SAME_EDGE",
+         SRTYPE       => "ASYNC"
+         )
+      port map(
+         Q  => evrToLmkClkMmcmDivNOddr,
+         C  => evrToLmkClkMmcmDivN,
+         CE => '1',
+         D1 => '1',
+         D2 => '0',
+         R  => dspRst  -- I guess the dsp reset makes the most sense?
+         );
+
+   -- OBUF_evrClkLed : OBUF
+   --    port map(
+   --       I => evrToLmkClkMmcmOddr,
+   --       O => userLed(3)
+   --       );
+
+   OBUF_evrClkPmod : OBUF
+      port map(
+         I => evrToLmkClkMmcmDivNOddr,
+         -- I => evrToLmkClkMmcmDivN,
+         O => pmod(0)(0)
+         );
 
    -- This did not work. Not sure why and it's difficult to debug the debugging tool...
    -- TODO: Consider using a PLL (MMCM) for qsfpSysClk as well?
@@ -305,7 +396,7 @@ begin
          evrTxUsrClk     => open,
          evrRxResetAsync => '0',
          evrRxResetDone  => open,
-         evrRxUsrClk     => open,
+         evrRxUsrClk     => evrRxUsrClk,
 
          -- QSFP transceiver control signals
          qsfpModSelL => qsfpModSelL,
