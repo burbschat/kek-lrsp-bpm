@@ -103,7 +103,7 @@ begin
     -- have registers for up to 32 triggers only (should be enough).
     -- assert N_TRGS_G <= N_TRGS_MAX_C report "N_TRGS_G must be <= 32 with current register mapping" severity failure;
 
-    -- 'Decoding' process (which essentially ony checks if k or error)
+    -- 'Decoding' process to extract even code, distributed bus/shared data
     DEC_PROC : process(usrClk)
         variable dataGood     : slv(1 downto 0);
         variable distrBusVar  : slv(7 downto 0);
@@ -133,6 +133,13 @@ begin
                 -- TODO: Could do some processing here...
                 -- Not sure what sort of data is usually available here and how
                 -- we might want to use it.
+                -- Something like: State machine that listens for message start
+                -- bit, then transitions to receive state until message stop
+                -- bit received. 
+                -- In any case, distributed bus/shared data is transmitted
+                -- alternated. I assume on the message start K either DB or SD
+                -- comes first and after that the pattern repeats. This then can
+                -- be used for alignment.
 
                 -- Update eventCode signal, but only if new good data received
                 distrBusInt <= distrBusVar;
