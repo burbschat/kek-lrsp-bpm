@@ -82,8 +82,6 @@ architecture top_level of KekLrspBpmBt is
    constant APP_INDEX_C  : natural := 2;
    constant GT_INDEX_C   : natural := 3;
 
-   constant EVR_N_TRGS_C : integer := 16;
-
    constant NUM_AXIL_MASTERS_C : positive := 4;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, APP_ADDR_OFFSET_C, 31, 28);
@@ -123,7 +121,13 @@ architecture top_level of KekLrspBpmBt is
    signal xvcClk156 : sl;
    signal xvcRst156 : sl;
 
-   signal evrTrgs : slv(EVR_N_TRGS_C - 1 downto 0);
+   -- Transceiver serial data outputs
+   signal usrClk    : sl;  -- user clock (rx data interface syncrhonous to this clock)
+   signal data      : slv(15 downto 0);
+   signal dataValid : sl;  -- Held low until GTY ready (running and aligned)
+   signal dataK     : slv(1 downto 0);
+   signal dispErr   : slv(1 downto 0);
+   signal decErr    : slv(1 downto 0);
 
 begin
 
@@ -287,14 +291,13 @@ begin
          TPD_G            => TPD_G,
          AXIL_BASE_ADDR_G => AXIL_CONFIG_C(GT_INDEX_C).baseAddr,
          AXIL_BASE_BOT_G  => AXIL_CONFIG_C(GT_INDEX_C).addrBits,
-         STABLE_CLK_F_HZ  => 156250000,  -- 156.250 MHz
-         N_TRGS_G         => EVR_N_TRGS_C
+         STABLE_CLK_F_HZ  => 156250000  -- 156.250 MHz
        -- TX_MIRROR_ENABLE_G => false
          )
       port map(
          stableClk       => qsfpSysClk,
          stableRst       => '0',
-         resetGt         => rstEvrGty,   -- Hard reset
+         resetGt         => rstEvrGty,  -- Hard reset
          gtRefClk        => qsfpRefClk,
          evrGtTxP        => qsfpGtTxP(0),
          evrGtTxN        => qsfpGtTxN(0),
@@ -322,8 +325,13 @@ begin
          axilWriteMaster => axilWriteMasters(GT_INDEX_C),
          axilWriteSlave  => axilWriteSlaves(GT_INDEX_C),
 
-         -- Trigger oututs
-         trgs => evrTrgs
+         -- Serial data outputs
+         usrClk    => usrClk,
+         data      => data,
+         dataValid => dataValid,
+         dataK     => dataK,
+         dispErr   => dispErr,
+         decErr    => decErr
          );
 
    --------------
@@ -342,12 +350,18 @@ begin
          -- Trigger Inputs
          trigsIn(0)      => irigTrigOut,
          trigsIn(1)      => irigCompOut,
-         trigsIn(2)      => evrTrgs(0),
          -- ADC/DAC Interface (dspClk domain)
          dspClk          => dspClk,
          dspRst          => dspRst,
          dspAdc          => dspAdc,
          dspDac          => dspDac,
+         -- Serial data from transceiver
+         usrClk          => usrClk,
+         data            => data,
+         dataValid       => dataValid,
+         dataK           => dataK,
+         dispErr         => dispErr,
+         decErr          => decErr,
          -- AXI-Lite Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,

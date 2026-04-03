@@ -38,12 +38,19 @@ entity Application is
       dmaIbMaster     : out AxiStreamMasterType;
       dmaIbSlave      : in  AxiStreamSlaveType;
       -- Trigger Inputs
-      trigsIn         :     slv(2 downto 0);
+      trigsIn         :     slv(1 downto 0);
       -- ADC/DAC Interface (dspClk domain)
       dspClk          : in  sl;
       dspRst          : in  sl;
       dspAdc          : in  Slv256Array(3 downto 0);
       dspDac          : out Slv256Array(1 downto 0);
+      -- Serial from transceiver
+      usrClk          : in  sl;  -- user clock (rx data interface syncrhonous to this clock)
+      data            : in  slv(15 downto 0);
+      dataValid       : in  sl;  -- Held low until GTY ready (running and aligned)
+      dataK           : in  slv(1 downto 0);
+      dispErr         : in  slv(1 downto 0);
+      decErr          : in  slv(1 downto 0);
       -- AXI-Lite Interface (axilClk domain)
       axilClk         : in  sl;
       axilRst         : in  sl;
@@ -64,7 +71,14 @@ architecture mapping of Application is
    constant RING_INDEX_C         : natural := 1;  -- Used for axil and axis!
    constant DAC_SIG_INDEX_C      : natural := 2;
    constant READOUT_CTRL_INDEX_C : natural := 3;
-   constant NUM_AXIL_MASTERS_C   : natural := 4;
+   constant EVR_DEC_REG_INDEX_C  : natural := 4;
+   constant NUM_AXIL_MASTERS_C   : natural := 5;
+
+   -- TODO: Concat frame to ADC ring buffer data frame as a kind of header.
+   -- For now: Read out in separate stream for testing.
+   constant EVR_SD_INDEX_C : natural := 2;
+
+   constant NUM_AXIS_SLAVES_C : natural := 3;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, 28, 24);
 
@@ -74,8 +88,8 @@ architecture mapping of Application is
    signal axilWriteSlaves  : AxiLiteWriteSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0) := (others => AXI_LITE_WRITE_SLAVE_EMPTY_DECERR_C);
 
    -- Axi stream for ring buffers
-   signal axisMasters : AxiStreamMasterArray(1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
-   signal axisSlaves  : AxiStreamSlaveArray(1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+   signal axisMasters : AxiStreamMasterArray(NUM_AXIS_SLAVES_C-1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
+   signal axisSlaves  : AxiStreamSlaveArray(NUM_AXIS_SLAVES_C-1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
 
    signal adc      : Slv256Array(3 downto 0) := (others => (others => '0'));
    signal dac      : Slv256Array(1 downto 0) := (others => (others => '0'));
@@ -84,6 +98,9 @@ architecture mapping of Application is
    signal adcInterleaved : slv(NUM_ADC_CH_C*256 - 1 downto 0) := (others => '0');
 
    signal ringBufTrig : sl;
+
+   constant EVR_N_TRGS_C : integer := 16;
+   signal evrTrgs        : slv(EVR_N_TRGS_C - 1 downto 0);
 
 begin
 
@@ -117,11 +134,11 @@ begin
          mAxiReadMasters     => axilReadMasters,
          mAxiReadSlaves      => axilReadSlaves);
 
-   -- Mux axi streams from both ring buffers
+   -- Mux AXI streams from both ring buffers
    U_Mux : entity surf.AxiStreamMux
       generic map (
          TPD_G         => TPD_G,
-         NUM_SLAVES_G  => 2,
+         NUM_SLAVES_G  => NUM_AXIS_SLAVES_C,
          MODE_G        => "PASSTHROUGH",
          PIPE_STAGES_G => 1)
       port map (
@@ -135,11 +152,51 @@ begin
          mAxisMaster  => dmaIbMaster,
          mAxisSlave   => dmaIbSlave);
 
+
+   -- Event receiver decoding
+   U_EvrDecoder : entity work.EvrDecoder
+      generic map(
+         TPD_G            => TPD_G,
+         N_TRGS_G         => EVR_N_TRGS_C,
+         AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr,
+         SD_TDEST_ROUTE_G => x"20"
+         )
+      port map(
+         -- Serial data input
+         usrClk  => usrClk,
+         data    => data,
+         dataK   => dataK,
+         dispErr => dispErr,
+         decErr  => decErr,
+         rst     => not dataValid,  -- Keep in reset until data valid (forces reset while GTY resetting)
+
+         -- Trigger outputs
+         trgs => evrTrgs,
+
+         -- Trigger to readout most recent received shared data via AXI stream
+         sdReadoutTrig => ringBufTrig,
+
+         -- AXI-Stream Interface (axisClk domain)
+         axisClk    => dmaClk,
+         axisRst    => dmaRst,
+         axisMaster => axisMasters(EVR_SD_INDEX_C),
+         axisSlave  => axisSlaves(EVR_SD_INDEX_C),
+
+         -- AXI-Lite register interface
+         axilClk         => axilClk,
+         axilRst         => axilRst,
+         axilReadMaster  => axilReadMasters(EVR_DEC_REG_INDEX_C),
+         axilReadSlave   => axilReadSlaves(EVR_DEC_REG_INDEX_C),
+         axilWriteMaster => axilWriteMasters(EVR_DEC_REG_INDEX_C),
+         axilWriteSlave  => axilWriteSlaves(EVR_DEC_REG_INDEX_C)
+         );
+
+   -- ADC trigger and readout control
    U_ReadoutCtrl : entity work.ReadoutCtrl
       generic map(TPD_G => TPD_G)
       port map(
          -- Trigger Ports
-         trigsIn         => trigsIn,
+         trigsIn         => trigsIn & evrTrgs(0),
          ringBufTrigOut  => ringBufTrig,
          -- DSP Interface
          dspClk          => dspClk,
@@ -169,6 +226,7 @@ begin
       end loop;
    end process interleave_map;
 
+   -- TODO: IMO better to just use a AppRingBufferEngine directly.
    U_AppRingBuffer : entity axi_soc_ultra_plus_core.AppRingBuffer
       generic map (
          TPD_G                  => TPD_G,

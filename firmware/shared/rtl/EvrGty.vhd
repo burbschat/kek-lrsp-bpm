@@ -29,9 +29,7 @@ entity EvrGty is
         STABLE_CLK_F_HZ : integer := 156250000;  -- Used to time resets
 
         AXIL_BASE_ADDR_G : slv(31 downto 0);
-        AXIL_BASE_BOT_G  : natural range 1 to 32;
-
-        N_TRGS_G : integer := 16
+        AXIL_BASE_BOT_G  : natural range 1 to 32
         );
     port (
         -- GT Clocking
@@ -62,8 +60,13 @@ entity EvrGty is
         qsfpIntL    : in  sl;
         qsfpLpMode  : out sl;
 
-        -- Trigger outputs
-        trgs : out slv(N_TRGS_G - 1 downto 0);
+        -- Serial data out
+        usrClk    : out sl;  -- user clock (rx data interface syncrhonous to this clock)
+        data      : out slv(15 downto 0);
+        dataValid : out sl;  -- Held low until GTY ready (running and aligned)
+        dataK     : out slv(1 downto 0);
+        dispErr   : out slv(1 downto 0);
+        decErr    : out slv(1 downto 0);
 
         -- AXI-Lite DRP interface
         axilClk         : in  sl                     := '0';
@@ -77,11 +80,10 @@ end entity EvrGty;
 
 architecture mapping of EvrGty is
 
-    constant EVR_REG_INDEX_C     : natural := 0; -- Registers defined in this file, if possible no offset
-    constant EVR_DEC_REG_INDEX_C : natural := 1;
-    constant AXIL_DRP_INDEX_C    : natural := 2;
+    constant EVR_REG_INDEX_C  : natural := 0;  -- Registers defined in this file, if possible no offset
+    constant AXIL_DRP_INDEX_C : natural := 1;
 
-    constant NUM_AXIL_MASTERS_C : positive := 3;
+    constant NUM_AXIL_MASTERS_C : positive := 2;
 
     signal axilReadMasters  : AxiLiteReadMasterArray(NUM_AXIL_MASTERS_C-1 downto 0);
     signal axilReadSlaves   : AxiLiteReadSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0)  := (others => AXI_LITE_READ_SLAVE_EMPTY_DECERR_C);
@@ -130,8 +132,6 @@ architecture mapping of EvrGty is
 
     signal rxCdrStable : sl;
 
-    signal trgsInt : slv(N_TRGS_G - 1 downto 0);
-
     attribute keep       : string;
     attribute mark_debug : string;
 
@@ -161,8 +161,6 @@ architecture mapping of EvrGty is
     attribute keep of txUsrClkActive : signal is "true";
     attribute keep of rxUsrClkActive : signal is "true";
 
-    attribute keep of trgsInt : signal is "true";
-
     attribute mark_debug of qpll1Locked : signal is "true";
     attribute mark_debug of resetGtSync : signal is "true";
     attribute mark_debug of gtHardReset : signal is "true";
@@ -190,8 +188,6 @@ architecture mapping of EvrGty is
 
     attribute mark_debug of txUsrClkActive : signal is "true";
     attribute mark_debug of rxUsrClkActive : signal is "true";
-
-    attribute mark_debug of trgsInt : signal is "true";
 
     type EvrTxModeType is (
         RX_MIRROR,  -- Mirror rx 'as is' to tx (including commas)
@@ -287,6 +283,14 @@ architecture mapping of EvrGty is
     signal rin : RegType;
 
 begin
+    -- Serial data outputs
+    usrClk    <= rxUsrClk;
+    data      <= rxData;
+    dataValid <= rxResetDone and rxByteIsAligned;  -- Use to hold decoder in reset until ready
+    dataK     <= rxDataK;
+    dispErr   <= rxDispErr;
+    decErr    <= rxDecErr;
+
 
     evrRxResetDone <= rxResetDone;
     evrTxResetDone <= txResetDone;
@@ -425,40 +429,6 @@ begin
             axilWriteMaster => axilWriteMasters(AXIL_DRP_INDEX_C),
             axilWriteSlave  => axilWriteSlaves(AXIL_DRP_INDEX_C)
             );
-
-
-    --------------------------
-    -- Event receiver decoding
-    --------------------------
-
-    -- Put this in a separate entity as perhaps depending on the application we
-    -- want to change the decoding but keept the GTY as is.
-    U_EvrDecoder : entity work.EvrDecoder
-        generic map(
-            TPD_G    => TPD_G,
-            N_TRGS_G => N_TRGS_G
-            )
-        port map(
-            -- Serial data input
-            usrClk  => rxUsrClk,
-            data    => rxData,
-            dataK   => rxDataK,
-            dispErr => rxDispErr,
-            decErr  => rxDecErr,
-
-            -- Trigger outputs
-            trgs => trgsInt,
-
-            -- AXI-Lite register interface
-            axilClk         => axilClk,
-            axilRst         => axilRst,
-            axilReadMaster  => axilReadMasters(EVR_DEC_REG_INDEX_C),
-            axilReadSlave   => axilReadSlaves(EVR_DEC_REG_INDEX_C),
-            axilWriteMaster => axilWriteMasters(EVR_DEC_REG_INDEX_C),
-            axilWriteSlave  => axilWriteSlaves(EVR_DEC_REG_INDEX_C)
-            );
-
-    trgs <= trgsInt;
 
 
     ----------------------
