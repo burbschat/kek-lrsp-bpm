@@ -16,13 +16,14 @@ use work.AppPkg.all;
 
 entity EvrDbSd is
     generic(
-        TPD_G            : time            := 1 ns;
-        SD_EN            : boolean         := true;
-        SD_BUFF_LEN      : integer         := 2048;  -- Allocated SD buffer length
-        SD_START_K       : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
-        SD_END_K         : slv(7 downto 0) := x"3C";  -- K.28.1
-        TDEST_ROUTE_G    : slv(7 downto 0) := x"00";
-        AXIL_BASE_ADDR_G : slv(31 downto 0));
+        TPD_G              : time            := 1 ns;
+        SD_EN              : boolean         := true;
+        SD_BUFF_LEN        : integer         := 2048;  -- Allocated SD buffer length
+        SD_BUFF_ADDR_WIDTH : integer         := 11;  -- Allocated SD buffer length
+        SD_START_K         : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
+        SD_END_K           : slv(7 downto 0) := x"3C";  -- K.28.1
+        TDEST_ROUTE_G      : slv(7 downto 0) := x"00";
+        AXIL_BASE_ADDR_G   : slv(31 downto 0));
     port (
         clk       : in sl;
         rst       : in sl;
@@ -129,6 +130,8 @@ begin
     buffTrg(0)   <= not buffSel and extTrig;
     buffTrg(1)   <= buffSel and extTrig;
 
+    assert SD_BUFF_LEN = 2**SD_BUFF_ADDR_WIDTH report "Buffer 2**SD_BUFF_ADDR_WIDTH must equal SD_BUFF_LEN" severity failure;
+
     -- Those do not have to be ring buffers but the surf ring buffers come with
     -- axi stream readout which is convenient here.
     GEN_VEC : for i in 1 downto 0 generate
@@ -138,8 +141,8 @@ begin
                 SYNTH_MODE_G        => "xpm",
                 MEMORY_TYPE_G       => "block",
                 COMMON_CLK_G        => false,
-                DATA_BYTES_G        => 2,  -- 16 bit per transmission
-                RAM_ADDR_WIDTH_G    => SD_BUFF_LEN / 2,  -- Two bytes = 16 bit words but buff_len is in bytes
+                DATA_BYTES_G        => 1,  -- 8 bit per transmission
+                RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
                 -- AXI Stream Configurations
                 FIFO_MEMORY_TYPE_G  => "block",
                 FIFO_ADDR_WIDTH_G   => 9,  -- TODO: Adjust?
@@ -170,7 +173,9 @@ begin
             TPD_G          => TPD_G,
             NUM_SLAVES_G   => NUM_AXIS_MASTERS_C,
             MODE_G         => "ROUTED",
-            TDEST_ROUTES_G => (others => TDEST_ROUTE_G),  -- Same route as only one buffer transmits at a time
+            TDEST_ROUTES_G => (
+                0          => TDEST_ROUTE_G,
+                1          => TDEST_ROUTE_G),
             PIPE_STAGES_G  => 1)
         port map (
             -- Clock and reset
@@ -188,9 +193,11 @@ begin
         variable dataVar : slv(7 downto 0);
         variable v       : RegType;
     begin
+        -- Latch the current value
+        v := r;
+
         if dataValid = '1' then         -- Do nothing if data invalid
             dataVar := data;
-            v       := r;
 
             v.writeEn := '0';           -- Default to no write
 
@@ -215,7 +222,7 @@ begin
                             v.state     := RECEIVE_S;
                         end if;
                     when RECEIVE_S =>
-                        if v.isSd then
+                        if v.isSd = '1' then
                             -- Check for transmission end K or buffer full
                             if (dataK = '1' and data = SD_END_K) or (v.recBytesCnt = SD_BUFF_LEN) then
                                 -- Toggle selected buffer. Also toggles which
@@ -224,14 +231,14 @@ begin
                                 -- Move back to idle to wait for next start K
                                 v.state   := IDLE_S;
                             else
-                                v.recBytesCnt := v.recBytesCnt + 2;  -- Two bytes per transmission
+                                v.recBytesCnt := v.recBytesCnt + 1;  -- Two bytes per transmission
                                 v.writeEn     := '1';  -- Enable write to buffer
                             end if;
                         end if;
                 end case;
 
-                if v.alignDone then
-                    if not v.isSd then
+                if v.alignDone = '1' then
+                    if not (v.isSd = '1') then
                         v.distrBus := data;
                     end if;
 
@@ -243,12 +250,15 @@ begin
                 v.distrBus := data;
             end if;
 
-            -- Outputs
-            distrBus <= r.distrBus;
-            buffSel  <= r.buffSel;
-            writeEn  <= r.writeEn;
-
         end if;
+
+        -- Outputs
+        distrBus <= r.distrBus;
+        buffSel  <= r.buffSel;
+        writeEn  <= r.writeEn;
+
+        -- Register the variable for next clock cycle
+        rin <= v;
 
     end process comb;
 
