@@ -98,7 +98,7 @@ begin
             -- Check if data should be ignored or not. We want to try to ignore
             -- 'bad' data for triggers to avoid accidental firing I guess.
             if (not (r.trgsIgnoreIfK = '1' and dataK = '1'))
-                and (not (r.trgsIgnoreIfInvalid = '1' and dataValid = '1')) then
+                and (not (r.trgsIgnoreIfInvalid = '1' and dataValid = '0')) then
                 -- Check against all event codes in the triggers to events map
                 -- register. Will this result in very complicated logic? If so,
                 -- avoidable?
