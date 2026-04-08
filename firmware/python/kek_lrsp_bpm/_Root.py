@@ -87,10 +87,10 @@ class Root(pr.Root):
             self.memMap = rogue.hardware.axi.AxiMemMap("/dev/axi_memory_map")
 
         # Create and connect XVC on localost
-        # self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
-        # self.xvc = rogue.protocols.xilinx.Xvc(2542)
-        # self.addProtocol(self.xvc)
-        # self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
+        self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
+        self.xvc = rogue.protocols.xilinx.Xvc(2542)
+        self.addProtocol(self.xvc)
+        self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
 
         # Add RfSoC4x2 PS hardware control
         self.add(

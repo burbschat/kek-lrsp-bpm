@@ -23,7 +23,7 @@ set_clock_groups -asynchronous \
     -group [get_clocks -include_generated_clocks qsfpSysClkP] \
     -group [get_clocks -include_generated_clocks -of_objects [get_pins U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClk]] \
     -group [get_clocks -include_generated_clocks -of_objects [get_pins U_EvrGty/U_EvrGtyCoreWrapper/txUsrClk]]
-    # -group [get_clocks -of_objects [get_pins U_XVC_PLL/MmcmGen.U_Mmcm/CLKOUT0]] \
+    -group [get_clocks -of_objects [get_pins U_XVC_PLL/MmcmGen.U_Mmcm/CLKOUT0]]
     # -group [get_clocks qsfpRefClkP] \
 
 # ILA timing constraint violations are probably fine? So ignore them I guess
