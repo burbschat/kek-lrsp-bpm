@@ -38,7 +38,7 @@ class Application(pr.Device):
         # manually.
         self.add(rfsoc_utility.AppRingBuffer(
             name     = "AppRingBuffer",
-            offset   = 0x01_000000,
+            offset   = 0x0100_0000,
             numAdcCh = 1, # Must match NUM_ADC_CH_G config
             numDacCh = 0, # Must match NUM_DAC_CH_G config
             # expand   = True,
@@ -46,7 +46,7 @@ class Application(pr.Device):
 
         self.add(rfsoc_utility.SigGen(
             name         = 'DacSigGen',
-            offset       = 0x02_000000,
+            offset       = 0x0200_0000,
             numCh        = 2,  # Must match NUM_CH_G config
             ramWidth     = 10, # Must match RAM_ADDR_WIDTH_G config
             smplPerCycle = ssr, # Must match SAMPLE_PER_CYCLE_G config
@@ -68,10 +68,14 @@ class Application(pr.Device):
         ))
 
         self.add(rfsoc.ReadoutCtrl(
-            offset      = 0x03_000000,
+            offset      = 0x0300_0000,
             sampleRate  = sampleRate,
             SSR         = ssr,
             expand      = True,
+        ))
+
+        self.add(rfsoc.EvrDecoder(
+            offset     = 0x0400_0000,
         ))
 
     def startupInit(self):

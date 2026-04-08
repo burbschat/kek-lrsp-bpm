@@ -1,6 +1,42 @@
 import pyrogue as pr
+import surf.axi as axi
 
 class EvrDecoder(pr.Device):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+        # Must this be rfsoc.EvrTrgs?
+        self.add(EvrTrgs(
+            offset     = 0x0000_0000,
+        ))
+
+        self.add(EvrDbSd(
+            offset     = 0x0010_0000,
+        ))
+
+
+class EvrDbSd(pr.Device):
+    def __init__(
+        self,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+        for i in range(2):
+            self.add(axi.AxiStreamRingBuffer(
+                name   = f'DataBuff[{i}]',
+                offset = i * 0x1000,
+            ))
+
+        # TODO: No AXIL registers added yet
+
+
+class EvrTrgs(pr.Device):
     def __init__(
         self,
         n_trgs=16,  # Must match N_TRGS_G set for decoder in firmware!
@@ -13,45 +49,21 @@ class EvrDecoder(pr.Device):
 
         self.reset_vars = {}
 
-        # Must be set to match firmware!
-        self.DISTR_BUS_BITS_IDX_C  = 1;  # Upper 8
-        self.EVENT_CODE_BITS_IDX_C = 0;  # Lower 8
-
         self.add(pr.RemoteVariable(
-            name         = 'distrBusIgnoreIfK',
-            description  = 'Ignore distributed bus byte if corresponding k flag set',
+            name         = 'ignoreIfK',
+            description  = 'Ignore event code bits if corresponding k flag set',
             offset       = 0x0,
-            bitOffset    = self.DISTR_BUS_BITS_IDX_C,
+            bitOffset    = 0,
             bitSize      = 1,
             mode         = 'RW',
             hidden       = False,
         ))
 
         self.add(pr.RemoteVariable(
-            name         = 'eventCodeIgnoreIfK',
-            description  = 'Ignore event code byte if corresponding k flag set',
-            offset       = 0x0,
-            bitOffset    = self.EVENT_CODE_BITS_IDX_C,
-            bitSize      = 1,
-            mode         = 'RW',
-            hidden       = False,
-        ))
-
-        self.add(pr.RemoteVariable(
-            name         = 'distrBusIgnoreIfErr',
-            description  = 'Ignore distributed bus byte if corresponding disparity or decode error flag set',
-            offset       = 0x0,
-            bitOffset    = 2 + self.DISTR_BUS_BITS_IDX_C,
-            bitSize      = 1,
-            mode         = 'RW',
-            hidden       = False,
-        ))
-
-        self.add(pr.RemoteVariable(
-            name         = 'eventCodeIgnoreIfErr',
+            name         = 'ignoreIfInvalid',
             description  = 'Ignore event code byte if corresponding disparity or decode error flag set',
             offset       = 0x0,
-            bitOffset    = 2 + self.EVENT_CODE_BITS_IDX_C,
+            bitOffset    = 2,
             bitSize      = 1,
             mode         = 'RW',
             hidden       = False,
@@ -62,17 +74,6 @@ class EvrDecoder(pr.Device):
             description  = 'Value of last received event code',
             offset       = 0x4,
             bitOffset    = 0,
-            bitSize      = 8,
-            mode         = 'RO',
-            pollInterval = 0.1,
-            hidden       = False,
-        ))
-
-        self.add(pr.RemoteVariable(
-            name         = 'distrBus',
-            description  = 'Value of last received distributed bus data',
-            offset       = 0x4,
-            bitOffset    = 8,
             bitSize      = 8,
             mode         = 'RO',
             pollInterval = 0.1,

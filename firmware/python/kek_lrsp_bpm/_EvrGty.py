@@ -254,9 +254,5 @@ class EvrGty(pr.Device):
         ))
 
 
-        self.add(rfsoc.EvrDecoder(
-            offset     = 0x0001_0000,
-        ))
-
-        # Offset 0x0002_0000 and above is axil translated DRP interface to GTY transceiver.
+        # Offset 0x0001_0000 and above is axil translated DRP interface to GTY transceiver.
         # Registers for DRP could be added here (preferably as a nested device).
