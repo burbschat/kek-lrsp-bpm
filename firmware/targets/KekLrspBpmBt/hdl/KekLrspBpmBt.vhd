@@ -373,8 +373,9 @@ begin
    ----------------------
    --- Loopback Debugging
    ----------------------
-   dmaIbMasters(1) <= dmaObMasters(1);
-   dmaObSlaves(1)  <= dmaIbSlaves(1);
+   -- Use lane 1 for XVC as 2 does not work until bug is fixed
+   -- dmaIbMasters(1) <= dmaObMasters(1);
+   -- dmaObSlaves(1)  <= dmaIbSlaves(1);
 
    -------------
    -- XVC Module
@@ -390,9 +391,9 @@ begin
          -- DMA Interface (dmaClk domain)
          dmaClk      => dmaClk,
          dmaRst      => dmaRst,
-         dmaObMaster => dmaObMasters(2),
-         dmaObSlave  => dmaObSlaves(2),
-         dmaIbMaster => dmaIbMasters(2),
-         dmaIbSlave  => dmaIbSlaves(2));
+         dmaObMaster => dmaObMasters(1),
+         dmaObSlave  => dmaObSlaves(1),
+         dmaIbMaster => dmaIbMasters(1),
+         dmaIbSlave  => dmaIbSlaves(1));
 
 end top_level;
