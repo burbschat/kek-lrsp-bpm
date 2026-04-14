@@ -6,7 +6,7 @@
 hwType=RealDigitalRfSoC4x2
 
 # Define number of DMA lanes
-numLane=3
+numLane=2
 
 # Define number of DEST per DMA lane
 numDest=32

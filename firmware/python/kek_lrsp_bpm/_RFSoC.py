@@ -19,7 +19,7 @@ class RFSoC(pr.Device):
 
         self.add(socCore.AxiSocCore(
             offset      = 0x0000_0000,
-            numDmaLanes = 3,
+            numDmaLanes = 2,
             # expand      = True,
         ))
 
