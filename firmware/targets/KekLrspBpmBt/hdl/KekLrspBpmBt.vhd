@@ -136,34 +136,13 @@ begin
    userLed(2) <= not(dspRst);
    userLed(3) <= '1';
 
-   -- This did not work. Not sure why and it's difficult to debug the debugging tool...
-   -- TODO: Consider using a PLL (MMCM) for qsfpSysClk as well?
-   -- U_XVC_PLL : entity surf.ClockManagerUltraScale
-   --    generic map(
-   --       TPD_G              => TPD_G,
-   --       TYPE_G             => "MMCM",
-   --       INPUT_BUFG_G       => true,
-   --       FB_BUFG_G          => true,
-   --       RST_IN_POLARITY_G  => '1',
-   --       NUM_CLOCKS_G       => 1,
-   --       -- MMCM attributes
-   --       BANDWIDTH_G        => "OPTIMIZED",
-   --       CLKIN_PERIOD_G     => 4.0,     -- 250MHz (Actually ignored in synthesis???)
-   --       DIVCLK_DIVIDE_G    => 10,      -- 25.0MHz = 250MHz/10
-   --       CLKFBOUT_MULT_F_G  => 48.4375,  -- 1210.9375MHz = 48.4375 x 25.0MHz (see DS925 for vco range)
-   --       CLKOUT0_DIVIDE_F_G => 7.75)    -- 156.25MHz = 1210.9375MHz/7.75
-   --    port map(
-   --       -- Clock Input
-   --       clkIn     => axilClk,  -- In this firmware axiClk should be 250MHz
-   --       rstIn     => axilRst,
-   --       -- Clock Outputs
-   --       clkOut(0) => xvcClk156,
-   --       -- Reset Outputs
-   --       rstOut(0) => xvcRst156);
-
-   -- MMCM won't take my CLKIN so use 156.25 available from oscillator on board
+   -- 156.25 available from oscillator on board so use that (also MMCM would
+   -- always result in timing violations)
    xvcClk156 <= qsfpSysClk;
-   xvcRst156 <= '0';  -- Simply set to zero (for testing only)
+   -- Do NOT use existing resets like axil reset as we might want to inspect
+   -- signals during those. If reset is required, probably better prepare
+   -- a dedicated reset for xvc.
+   xvcRst156 <= '0';
 
    -----------------------
    -- Common Platform Core
