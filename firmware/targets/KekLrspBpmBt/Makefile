@@ -2,7 +2,7 @@
 target: bit
 
 # Set to use XVC Debug bridge. Enabling this disables JTAG debug!
-# export USE_XVC_DEBUG = 1
+export USE_XVC_DEBUG = 1
 
 # Define target part
 export PRJ_PART = xczu48dr-ffvg1517-2-e

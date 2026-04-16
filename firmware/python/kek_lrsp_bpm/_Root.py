@@ -20,6 +20,7 @@ import pyrogue as pr
 import pyrogue.protocols
 import pyrogue.utilities.fileio
 import pyrogue.utilities.prbs
+import pyrogue.interfaces.stream
 
 import kek_lrsp_bpm as rfsoc
 import axi_soc_ultra_plus_core.rfsoc_utility as rfsoc_utility
@@ -86,12 +87,6 @@ class Root(pr.Root):
         else:
             self.memMap = rogue.hardware.axi.AxiMemMap("/dev/axi_memory_map")
 
-        # Create and connect XVC on localost
-        # self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
-        # self.xvc = rogue.protocols.xilinx.Xvc(2542)
-        # self.addProtocol(self.xvc)
-        # self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
-
         # Add RfSoC4x2 PS hardware control
         self.add(
             rfsoc_hw.Hardware(
@@ -145,13 +140,13 @@ class Root(pr.Root):
             self.ringBufferAdcLive = [stream.TcpClient(ip, 10000 + 2 * (i + 0)) for i in range(4)]
             self.ringBufferDacLive = [stream.TcpClient(ip, 10000 + 2 * (i + 16)) for i in range(2)]
             self.ringBufferAdc = stream.TcpClient(ip, 10000 + 2 * (0 + 4))  # No DACs required here, interleaved into one stream
-            # self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
+            self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
         else:
             # id = 256*lane+tdest
             self.ringBufferAdcLive = [rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", i + 0, True) for i in range(4)]
             self.ringBufferDacLive = [rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 16 + i, True) for i in range(2)]
             self.ringBufferAdc = rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 0 + 4, True)  # No DACs required here, interleaved into one stream
-            # self.xvcStream = rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 256 * 2 + 0, True)  # Lane 2 dest 0
+            self.xvcStream = rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 256 * 2 + 0, True)  # Lane 2 dest 0
         self.adcLiveDropFifo = [pr.interfaces.stream.Fifo(name=f"AdcLiveDropFifo[{i}]", maxDepth=1) for i in range(4)]  # Drop if more than 1 frame in FIFO
         self.dacLiveDropFifo = [pr.interfaces.stream.Fifo(name=f"DacLiveDropFifo[{i}]", maxDepth=1) for i in range(2)]  # Drop if more than 1 frame in FIFO
         self.adcDropFifo = [pr.interfaces.stream.Fifo(name=f"AdcDropFifo[{i}]", maxDepth=1) for i in range(4)]  # Drop if more than 1 frame in FIFO
@@ -191,6 +186,11 @@ class Root(pr.Root):
             # self.ringBufferDacLive[i] >> self.dataWriter.getChannel(i + 16)
             self.ringBufferDacLive[i] >> self.dacLiveDropFifo[i] >> self.dacLiveProcessor[i]
             self.add(self.dacLiveProcessor[i])
+
+        # Create and connect XVC on localhost
+        self.xvc = rogue.protocols.xilinx.Xvc(2542)
+        self.addProtocol(self.xvc)
+        self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
 
     ##################################################################################
 

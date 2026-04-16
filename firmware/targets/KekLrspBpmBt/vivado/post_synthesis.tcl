@@ -119,6 +119,13 @@ ConfigProbe ${ilaName} {U_EvrGty/gtTxUserResetSync}
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxOutClk}
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txOutClk}
 
+# New EVR stuff
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_TRGS/trgs*}
+ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/trigsIn*}
+ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/ringBufTrigOut*}
+
+
+
 # # Before synchronizer
 # ConfigProbe ${ilaName} {U_EvrGty/U_EvrDecoder/U_TRGS/r[trgCountsResets]*}
 # # After synchronizer
