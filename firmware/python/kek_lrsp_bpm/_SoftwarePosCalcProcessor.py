@@ -425,7 +425,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     description="bunch charge variable",
                     typeStr="Float",
                     mode="RO",
-                    value=0,
+                    value=0.0,
                     hidden=False,
                 )
             )
@@ -437,7 +437,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="position variable",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["polyPosCalc"],
                         hidden=False,
                     )
@@ -449,7 +449,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="position variable",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["polyPosCalc"],
                         hidden=False,
                     )
@@ -462,7 +462,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="position variable",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
@@ -474,7 +474,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="position variable",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
@@ -488,7 +488,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                             description="position variable with masked channels",
                             typeStr="Float",
                             mode="RO",
-                            value=0,
+                            value=0.0,
                             hidden=False,
                         )
                     )
@@ -499,7 +499,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                             description="position variable with masked channels",
                             typeStr="Float",
                             mode="RO",
-                            value=0,
+                            value=0.0,
                             hidden=False,
                         )
                     )
@@ -510,7 +510,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="standard deviation of position variables with masked channels",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
@@ -522,7 +522,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="standard deviation of position variables with masked channels",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
@@ -534,7 +534,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="mean of position variables with masked channels",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
@@ -546,7 +546,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         description="mean of position variables with masked channels",
                         typeStr="Float",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
