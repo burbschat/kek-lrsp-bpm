@@ -196,7 +196,7 @@ begin
       generic map(TPD_G => TPD_G)
       port map(
          -- Trigger Ports
-         trigsIn         => trigsIn & evrTrgs(0),
+         trigsIn         => evrTrgs(0) & trigsIn,
          ringBufTrigOut  => ringBufTrig,
          -- DSP Interface
          dspClk          => dspClk,
