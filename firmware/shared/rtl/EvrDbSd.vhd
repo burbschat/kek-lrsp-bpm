@@ -59,7 +59,7 @@ architecture rtl of EvrDbSd is
         IDLE_S,
         RECEIVE_S);
 
-    type RegType is record
+    type DataRegType is record
         state       : StateType;
         alignDone   : sl;
         isSd        : sl;
@@ -67,9 +67,9 @@ architecture rtl of EvrDbSd is
         writeEn     : sl;
         recBytesCnt : slv(9 downto 0);
         distrBus    : slv(7 downto 0);
-    end record RegType;
+    end record DataRegType;
 
-    constant REG_INIT_C : RegType := (
+    constant DATA_REG_INIT_C : DataRegType := (
         state       => IDLE_S,
         alignDone   => '0',
         isSd        => '0',
@@ -79,8 +79,23 @@ architecture rtl of EvrDbSd is
         distrBus    => (others => '0')
         );
 
-    signal r   : RegType := REG_INIT_C;
-    signal rin : RegType;
+    type AxilRegType is record
+        axilReadSlave  : AxiLiteReadSlaveType;
+        axilWriteSlave : AxiLiteWriteSlaveType;
+        stateReg       : slv(7 downto 0);
+    end record AxilRegType;
+
+    constant AXIL_REG_INIT_C : AxilRegType := (
+        axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
+        axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C,
+        stateReg       => (others => '0')
+        );
+
+    signal dataR   : DataRegType := DATA_REG_INIT_C;
+    signal dataRin : DataRegType;
+
+    signal axilR   : AxilRegType := AXIL_REG_INIT_C;
+    signal axilRin : AxilRegType;
 
     signal buffTrg   : slv(1 downto 0);
     signal buffSel   : sl;
@@ -88,8 +103,11 @@ architecture rtl of EvrDbSd is
     signal writeEn   : sl;
 
 
-    constant NUM_AXIL_MASTERS_C : natural := 2;
     constant NUM_AXIS_MASTERS_C : natural := 2;
+
+    constant NUM_AXIL_MASTERS_C : natural := 3;
+    constant RING_INDEX_START_C : natural := 0;  -- Two slots used at this index and this index + 1
+    constant REG_INDEX_C        : natural := 2;
 
     constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, 16, 12);
 
@@ -157,10 +175,10 @@ begin
                 -- AXI-Lite interface (axilClk domain)
                 axilClk         => axilClk,
                 axilRst         => axilRst,
-                axilReadMaster  => axilReadMasters(i),
-                axilReadSlave   => axilReadSlaves(i),
-                axilWriteMaster => axilWriteMasters(i),
-                axilWriteSlave  => axilWriteSlaves(i),
+                axilReadMaster  => axilReadMasters(RING_INDEX_START_C + i),
+                axilReadSlave   => axilReadSlaves(RING_INDEX_START_C + i),
+                axilWriteMaster => axilWriteMasters(RING_INDEX_START_C + i),
+                axilWriteSlave  => axilWriteSlaves(RING_INDEX_START_C + i),
                 -- AXI-Stream Interface (axisClk domain)
                 axisClk         => axisClk,
                 axisRst         => axisRst,
@@ -189,12 +207,12 @@ begin
             mAxisSlave   => axisSlave);
 
 
-    comb : process(r, dataValid, data, dataK)
+    dataComb : process(dataR, dataValid, data, dataK)
         variable dataVar : slv(7 downto 0);
-        variable v       : RegType;
+        variable v       : DataRegType;
     begin
         -- Latch the current value
-        v := r;
+        v := dataR;
 
         if dataValid = '1' then         -- Do nothing if data invalid
             dataVar := data;
@@ -206,7 +224,7 @@ begin
             -- reset after writing to it to ensure re-align.
             if SD_EN then
                 -- State machine
-                case r.state is
+                case dataR.state is
                     when IDLE_S =>
                         -- Wait for start K. DB is not output until at least one
                         -- start K is received. This is required as otherwise we
@@ -227,7 +245,7 @@ begin
                             if (dataK = '1' and data = SD_END_K) or (v.recBytesCnt = SD_BUFF_LEN) then
                                 -- Toggle selected buffer. Also toggles which
                                 -- buffer is triggered for readout.
-                                v.buffSel := not r.buffSel;
+                                v.buffSel := not dataR.buffSel;
                                 -- Move back to idle to wait for next start K
                                 v.state   := IDLE_S;
                             else
@@ -242,7 +260,7 @@ begin
                         v.distrBus := data;
                     end if;
 
-                    v.isSd := not r.isSd;  -- Toggle
+                    v.isSd := not dataR.isSd;  -- Toggle
                 end if;
             else
                 -- if SD disabled, all transmissions are DB and we don't have
@@ -253,22 +271,57 @@ begin
         end if;
 
         -- Outputs
-        distrBus <= r.distrBus;
-        buffSel  <= r.buffSel;
-        writeEn  <= r.writeEn;
+        distrBus <= dataR.distrBus;
+        buffSel  <= dataR.buffSel;
+        writeEn  <= dataR.writeEn;
 
         -- Register the variable for next clock cycle
-        rin <= v;
+        dataRin <= v;
 
-    end process comb;
+    end process dataComb;
 
-    seq : process(clk, rst)
+    dataSeq : process(clk, rst)
     begin
         if rst = '1' then
-            r <= REG_INIT_C;
+            dataR <= DATA_REG_INIT_C;
         elsif rising_edge(clk) then
-            r <= rin after TPD_G;
+            dataR <= dataRin after TPD_G;
         end if;
-    end process seq;
+    end process dataSeq;
+
+
+    axilComb : process(axilR, axilReadMasters(REG_INDEX_C), axilWriteMasters(REG_INDEX_C), dataR.state)
+        variable v      : AxilRegType;
+        variable axilEp : AxiLiteEndpointType;
+    begin
+
+        -- Latch the current value
+        v := axilR;
+
+        ------------------------
+        -- AXI-Lite Transactions
+        ------------------------
+
+        -- Determine the transaction type
+        axiSlaveWaitTxn(axilEp, axilWriteMasters(REG_INDEX_C), axilReadMasters(REG_INDEX_C), v.axilWriteSlave, v.axilReadSlave);
+
+        axiSlaveRegisterR(axilEp, x"0", 0, axilR.stateReg);
+
+        -- Close the transaction
+        axiSlaveDefault(axilEp, v.axilWriteSlave, v.axilReadSlave, AXI_RESP_DECERR_C);
+
+        ----------------------------------------------------------------------
+
+        -- Update state register
+        -- Surely I'll get away with this...
+        v.stateReg := conv_std_logic_vector(StateType'pos(dataR.state), axilR.stateReg'length);
+    end process axilComb;
+
+    axilSeq : process (axilClk, axilRst) is
+    begin
+        if rising_edge(axilClk) then
+            axilR <= axilRin after TPD_G;
+        end if;
+    end process axilSeq;
 
 end architecture rtl;

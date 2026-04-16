@@ -33,6 +33,23 @@ class EvrDbSd(pr.Device):
                 offset = i * 0x1000,
             ))
 
+        self._reg_base = 3 * 0x1000
+
+        self.add(pr.RemoteVariable(
+            name         = 'stateReg',
+            description  = 'Register indicating the state of the trigger FSM',
+            offset       = self._reg_base + 0x00,
+            bitSize      = 8,
+            mode         = 'RO',
+            pollInterval = 1,
+            # These are encoding dependent and thus may depend on implementation of enums in the firmware
+            enum        = {
+                0x0: 'IDLE',
+                0x1: 'RECEIVE_S',
+            },
+        ))
+
+
         # TODO: No AXIL registers added yet
 
 
