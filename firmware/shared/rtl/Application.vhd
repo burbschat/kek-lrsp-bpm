@@ -159,7 +159,7 @@ begin
          TPD_G            => TPD_G,
          N_TRGS_G         => EVR_N_TRGS_C,
          AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr,
-         SD_TDEST_ROUTE_G => x"20"
+         SD_TDEST_ROUTE_G => x"12"
          )
       port map(
          -- Serial data input

@@ -2,6 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_unsigned.all;
 use ieee.std_logic_arith.all;
+use ieee.numeric_std.all;
 
 library surf;
 use surf.StdRtlPkg.all;
@@ -65,8 +66,10 @@ architecture rtl of EvrDbSd is
         isSd        : sl;
         buffSel     : sl;
         writeEn     : sl;
-        recBytesCnt : slv(9 downto 0);
+        recBytesCnt : slv(15 downto 0);
+        sdData      : slv(7 downto 0);
         distrBus    : slv(7 downto 0);
+        recDoneStrb : sl;
     end record DataRegType;
 
     constant DATA_REG_INIT_C : DataRegType := (
@@ -76,19 +79,25 @@ architecture rtl of EvrDbSd is
         buffSel     => '0',
         writeEn     => '0',
         recBytesCnt => (others => '0'),
-        distrBus    => (others => '0')
+        sdData      => (others => '0'),
+        distrBus    => (others => '0'),
+        recDoneStrb => '0'
         );
 
     type AxilRegType is record
         axilReadSlave  : AxiLiteReadSlaveType;
         axilWriteSlave : AxiLiteWriteSlaveType;
         stateReg       : slv(7 downto 0);
+        softTrig       : sl;
+        testReg        : slv(31 downto 0);
     end record AxilRegType;
 
     constant AXIL_REG_INIT_C : AxilRegType := (
         axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
         axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C,
-        stateReg       => (others => '0')
+        stateReg       => (others => '0'),
+        softTrig       => '0',
+        testReg        => (others => '1')
         );
 
     signal dataR   : DataRegType := DATA_REG_INIT_C;
@@ -97,10 +106,16 @@ architecture rtl of EvrDbSd is
     signal axilR   : AxilRegType := AXIL_REG_INIT_C;
     signal axilRin : AxilRegType;
 
-    signal buffTrg   : slv(1 downto 0);
-    signal buffSel   : sl;
-    signal buffValid : slv(1 downto 0);
-    signal writeEn   : sl;
+    signal buffTrg     : slv(1 downto 0);
+    signal buffSel     : sl;
+    signal buffValid   : slv(1 downto 0);
+    signal writeEn     : sl;
+    signal sdData      : slv(7 downto 0);
+    signal receiveDone : sl;
+    signal buffRst     : slv(1 downto 0);
+
+    signal readoutTrig : sl;
+    signal softTrig    : sl;
 
 
     constant NUM_AXIS_MASTERS_C : natural := 2;
@@ -141,12 +156,21 @@ begin
             mAxiReadSlaves      => axilReadSlaves);
 
 
+    -- Or the internal software trigger and external trigger
+    readoutTrig <= extTrig or softTrig;
+
     -- Make buffer selection and trigger mutually exclusive
     buffValid(0) <= buffSel and writeEn;
     buffValid(1) <= not buffSel and writeEn;
-    -- Read out the buffer that is not currently used for writing!
-    buffTrg(0)   <= not buffSel and extTrig;
-    buffTrg(1)   <= buffSel and extTrig;
+    -- Read out the buffer that IS NOT currently used for writing!
+    buffTrg(0)   <= not buffSel and readoutTrig;
+    buffTrg(1)   <= buffSel and readoutTrig;
+    -- Reset always the buffer that IS currently selected for writing!
+    -- This does not actually zero out the buffer so if a transmission has less
+    -- data than the buffer size and the transmission lengths vary one must keep
+    -- track of the number of received bytes! TODO?
+    buffRst(0)   <= buffSel and receiveDone;
+    buffRst(1)   <= not buffSel and receiveDone;
 
     assert SD_BUFF_LEN = 2**SD_BUFF_ADDR_WIDTH report "Buffer 2**SD_BUFF_ADDR_WIDTH must equal SD_BUFF_LEN" severity failure;
 
@@ -159,18 +183,20 @@ begin
                 SYNTH_MODE_G        => "xpm",
                 MEMORY_TYPE_G       => "block",
                 COMMON_CLK_G        => false,
-                DATA_BYTES_G        => 1,  -- 8 bit per transmission
+                DATA_BYTES_G        => 1,   -- 8 bit per transmission
                 RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
                 -- AXI Stream Configurations
                 FIFO_MEMORY_TYPE_G  => "block",
-                FIFO_ADDR_WIDTH_G   => 9,  -- TODO: Adjust?
+                FIFO_ADDR_WIDTH_G   => 9,   -- TODO: Adjust?
                 GEN_SYNC_FIFO_G     => false,
                 AXI_STREAM_CONFIG_G => DMA_AXIS_CONFIG_C)
             port map (
                 -- Data to store in ring buffer (dataClk domain)
                 dataClk         => clk,
                 dataValid       => buffValid(i),
-                dataValue       => data,  -- Connect directly, use write enable to only capture valid data
+                dataValue       => sdData,  -- Data line shared between buffers, use write enable to only capture valid data
+                dataRst         => buffRst(i),  -- Use to reset ring buffer pointers
+                -- Trigger for readout over axis
                 extTrig         => buffTrg(i),
                 -- AXI-Lite interface (axilClk domain)
                 axilClk         => axilClk,
@@ -206,6 +232,14 @@ begin
             mAxisMaster  => axisMaster,
             mAxisSlave   => axisSlave);
 
+    U_SoftTrigSync : entity surf.SynchronizerOneShot
+        generic map(
+            TPD_G => TPD_G)
+        port map(
+            clk     => clk,
+            rst     => rst,
+            dataIn  => axilR.softTrig,
+            dataOut => softTrig);
 
     dataComb : process(dataR, dataValid, data, dataK)
         variable dataVar : slv(7 downto 0);
@@ -213,6 +247,9 @@ begin
     begin
         -- Latch the current value
         v := dataR;
+
+        -- Reset strobes
+        v.recDoneStrb := '0';
 
         if dataValid = '1' then         -- Do nothing if data invalid
             dataVar := data;
@@ -223,6 +260,9 @@ begin
             -- SD_EN might as well be a register but if so one must ensure
             -- reset after writing to it to ensure re-align.
             if SD_EN then
+                if dataR.alignDone = '1' then
+                    v.isSd := not dataR.isSd;  -- Toggle
+                end if;
                 -- State machine
                 case dataR.state is
                     when IDLE_S =>
@@ -237,30 +277,38 @@ begin
                             -- received. Consider setting back to 0 if e.g.
                             -- checksums fail (indicating misalignment)?
                             v.alignDone := '1';
-                            v.state     := RECEIVE_S;
+
+                            -- Preset counter
+                            v.recBytesCnt := x"07FF";  -- slv(to_unsigned(SD_BUFF_LEN, v.recBytesCnt'length));
+                            -- Move to receive state
+                            v.state       := RECEIVE_S;
                         end if;
                     when RECEIVE_S =>
-                        if v.isSd = '1' then
-                            -- Check for transmission end K or buffer full
-                            if (dataK = '1' and data = SD_END_K) or (v.recBytesCnt = SD_BUFF_LEN) then
-                                -- Toggle selected buffer. Also toggles which
-                                -- buffer is triggered for readout.
-                                v.buffSel := not dataR.buffSel;
-                                -- Move back to idle to wait for next start K
-                                v.state   := IDLE_S;
-                            else
-                                v.recBytesCnt := v.recBytesCnt + 1;  -- Two bytes per transmission
-                                v.writeEn     := '1';  -- Enable write to buffer
-                            end if;
+                        -- Check for transmission end K or buffer full
+                        if (dataK = '1' and data = SD_END_K) or (dataR.recBytesCnt = 0) then
+                            -- Toggle selected buffer. Also toggles which
+                            -- buffer is triggered for readout!
+                            v.buffSel     := not dataR.buffSel;
+                            -- Strobe receive done which also resets the buffer
+                            -- that is queued for next recording
+                            v.recDoneStrb := '1';
+                            -- Move back to idle to wait for next start K
+                            v.state       := IDLE_S;
+                        -- Otherwise, if data is SD, record it into buffer
+                        elsif v.isSd = '1' then
+                            v.recBytesCnt := dataR.recBytesCnt - 1;  -- Decrement counter
+                            v.sdData      := data;     -- Set data
+                            v.writeEn     := '1';  -- Enable write to buffer
                         end if;
                 end case;
 
-                if v.alignDone = '1' then
-                    if not (v.isSd = '1') then
-                        v.distrBus := data;
-                    end if;
-
-                    v.isSd := not dataR.isSd;  -- Toggle
+                -- Data is either DB or SD but DB arrives also when there is no
+                -- SD transmission ongoing. TODO: Maybe all is DB when there is
+                -- no SD transmission ongoing??? A but at least from ILA debug
+                -- it seems like every second two bytes are 0 unless
+                -- transmission ongoing so probably not?
+                if not (v.isSd = '1') then
+                    v.distrBus := data;
                 end if;
             else
                 -- if SD disabled, all transmissions are DB and we don't have
@@ -271,9 +319,12 @@ begin
         end if;
 
         -- Outputs
-        distrBus <= dataR.distrBus;
-        buffSel  <= dataR.buffSel;
-        writeEn  <= dataR.writeEn;
+        distrBus    <= dataR.distrBus;
+        buffSel     <= dataR.buffSel;
+        receiveDone <= dataR.recDoneStrb;
+        -- Write enable and data must be synchronous so include both in register
+        writeEn     <= dataR.writeEn;
+        sdData      <= dataR.sdData;
 
         -- Register the variable for next clock cycle
         dataRin <= v;
@@ -290,13 +341,15 @@ begin
     end process dataSeq;
 
 
-    axilComb : process(axilR, axilReadMasters(REG_INDEX_C), axilWriteMasters(REG_INDEX_C), dataR.state)
+    axilComb : process(axilR, axilReadMasters(REG_INDEX_C), axilWriteMasters(REG_INDEX_C), axilRst, dataR.state)
         variable v      : AxilRegType;
         variable axilEp : AxiLiteEndpointType;
     begin
-
         -- Latch the current value
         v := axilR;
+
+        -- Reset strobes
+        v.softTrig := '0';
 
         ------------------------
         -- AXI-Lite Transactions
@@ -306,6 +359,8 @@ begin
         axiSlaveWaitTxn(axilEp, axilWriteMasters(REG_INDEX_C), axilReadMasters(REG_INDEX_C), v.axilWriteSlave, v.axilReadSlave);
 
         axiSlaveRegisterR(axilEp, x"0", 0, axilR.stateReg);
+        axiSlaveRegister (axilEp, x"4", 0, v.softTrig);
+        axiSlaveRegister (axilEp, x"8", 0, v.testReg);
 
         -- Close the transaction
         axiSlaveDefault(axilEp, v.axilWriteSlave, v.axilReadSlave, AXI_RESP_DECERR_C);
@@ -315,9 +370,17 @@ begin
         -- Update state register
         -- Surely I'll get away with this...
         v.stateReg := conv_std_logic_vector(StateType'pos(dataR.state), axilR.stateReg'length);
+
+        -- Reset (synchronous)
+        if (axilRst = '1') then
+            v := AXIL_REG_INIT_C;
+        end if;
+
+        -- Register the variable for next clock cycle
+        axilRin <= v;
     end process axilComb;
 
-    axilSeq : process (axilClk, axilRst) is
+    axilSeq : process (axilClk) is
     begin
         if rising_edge(axilClk) then
             axilR <= axilRin after TPD_G;

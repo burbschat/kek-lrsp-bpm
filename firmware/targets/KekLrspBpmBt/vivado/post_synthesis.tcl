@@ -66,63 +66,77 @@ ConfigProbe ${ilaName} {U_App/axilRst}
 # ConfigProbe ${ilaName} {U_EvrGty/gtRefClk}
 # ConfigProbe ${ilaName} {U_qsfpSysClk/O}
 
-ConfigProbe ${ilaName} {U_EvrGty/rxData[*]}
-ConfigProbe ${ilaName} {U_EvrGty/rxDataK[*]}
-ConfigProbe ${ilaName} {U_EvrGty/rxUsrClk}
-# ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/clkOut[*]}
-# ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/locked}
-# ConfigProbe ${ilaName} {U_EvrGty/U_TXUSRCLK_PLL/locked}
-ConfigProbe ${ilaName} {U_EvrGty/rxResetDone}
-ConfigProbe ${ilaName} {U_EvrGty/rxDispErr[*]}
-ConfigProbe ${ilaName} {U_EvrGty/rxDecErr[*]}
-
-# ConfigProbe ${ilaName} {U_EvrGty/stableRst}
-ConfigProbe ${ilaName} {U_EvrGty/resetGt}
-# Hard reset signal (stablerst or resetgt):
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/stableRst}
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClkActive}
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txUsrClkActive}
-
-
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rx8b10bEn}
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDetEn}
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxMCommaAlignEn}
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPCommaAlignEn}
-
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteIsAligned}
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteRealign}
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDet}
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPmaResetDone}
-
-# TODO: Check this one!
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCdrStable}
-
-# ConfigProbe ${ilaName} {qsfpModPrs}
-# ConfigProbe ${ilaName} {qsfpLpModeInt}
-# ConfigProbe ${ilaName} {qsfpReset}
-
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/tx8b10bEn}
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPmaResetDone}
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPrgDivResetDone}
-
-
-# QPLL1 locked signal
-ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/qpll1Lock}
-
-ConfigProbe ${ilaName} {U_EvrGty/txData[*]}
-ConfigProbe ${ilaName} {U_EvrGty/txDataK[*]}
-ConfigProbe ${ilaName} {U_EvrGty/txUsrClk}
-ConfigProbe ${ilaName} {U_EvrGty/txResetDone}
-
-ConfigProbe ${ilaName} {U_EvrGty/gtRxUserResetSync}
-ConfigProbe ${ilaName} {U_EvrGty/gtTxUserResetSync}
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxOutClk}
-# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txOutClk}
+# ConfigProbe ${ilaName} {U_EvrGty/rxData[*]}
+# ConfigProbe ${ilaName} {U_EvrGty/rxDataK[*]}
+# ConfigProbe ${ilaName} {U_EvrGty/rxUsrClk}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/clkOut[*]}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_RXUSRCLK_PLL/locked}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_TXUSRCLK_PLL/locked}
+# ConfigProbe ${ilaName} {U_EvrGty/rxResetDone}
+# ConfigProbe ${ilaName} {U_EvrGty/rxDispErr[*]}
+# ConfigProbe ${ilaName} {U_EvrGty/rxDecErr[*]}
+#
+# # ConfigProbe ${ilaName} {U_EvrGty/stableRst}
+# ConfigProbe ${ilaName} {U_EvrGty/resetGt}
+# # Hard reset signal (stablerst or resetgt):
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/stableRst}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClkActive}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txUsrClkActive}
+#
+#
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rx8b10bEn}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDetEn}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxMCommaAlignEn}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPCommaAlignEn}
+#
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteIsAligned}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxByteRealign}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCommaDet}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxPmaResetDone}
+#
+# # TODO: Check this one!
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxCdrStable}
+#
+# # ConfigProbe ${ilaName} {qsfpModPrs}
+# # ConfigProbe ${ilaName} {qsfpLpModeInt}
+# # ConfigProbe ${ilaName} {qsfpReset}
+#
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/tx8b10bEn}
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPmaResetDone}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txPrgDivResetDone}
+#
+#
+# # QPLL1 locked signal
+# ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/qpll1Lock}
+#
+# ConfigProbe ${ilaName} {U_EvrGty/txData[*]}
+# ConfigProbe ${ilaName} {U_EvrGty/txDataK[*]}
+# ConfigProbe ${ilaName} {U_EvrGty/txUsrClk}
+# ConfigProbe ${ilaName} {U_EvrGty/txResetDone}
+#
+# ConfigProbe ${ilaName} {U_EvrGty/gtRxUserResetSync}
+# ConfigProbe ${ilaName} {U_EvrGty/gtTxUserResetSync}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxOutClk}
+# # ConfigProbe ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/txOutClk}
 
 # New EVR stuff
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_TRGS/trgs*}
 ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/trigsIn*}
 ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/ringBufTrigOut*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/data*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataK*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/clk*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/rst*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataValid*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/writeEn*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffSel*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffTrg*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffValid*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/softTrig*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/axis*}
 
 
 

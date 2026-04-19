@@ -33,7 +33,7 @@ class EvrDbSd(pr.Device):
                 offset = i * 0x1000,
             ))
 
-        self._reg_base = 3 * 0x1000
+        self._reg_base = 2 * 0x1000
 
         self.add(pr.RemoteVariable(
             name         = 'stateReg',
@@ -49,8 +49,18 @@ class EvrDbSd(pr.Device):
             },
         ))
 
+        self.add(pr.RemoteVariable(
+            name         = 'SwTrig',
+            description  = 'Software ring buffer rigger',
+            offset       = self._reg_base + 0x4,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = True,
+        ))
 
-        # TODO: No AXIL registers added yet
+        @self.command()
+        def SendSwTrig():
+            self.SwTrig.set(1)
 
 
 class EvrTrgs(pr.Device):

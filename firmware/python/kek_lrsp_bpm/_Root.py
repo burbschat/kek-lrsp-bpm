@@ -141,6 +141,7 @@ class Root(pr.Root):
             self.ringBufferDacLive = [stream.TcpClient(ip, 10000 + 2 * (i + 16)) for i in range(2)]
             self.ringBufferAdc = stream.TcpClient(ip, 10000 + 2 * (0 + 4))  # No DACs required here, interleaved into one stream
             self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
+            self.dbSdTest = stream.TcpClient(ip, 10000 + 2 * 0x12)  # Lane 2 dest 0
         else:
             # id = 256*lane+tdest
             self.ringBufferAdcLive = [rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", i + 0, True) for i in range(4)]
@@ -155,6 +156,8 @@ class Root(pr.Root):
         # DAC SR is set to same as ADC SR in firmware (RFDC IP core)
         self.dacLiveProcessor = [rfsoc_utility.RingBufferProcessor(name=f"DacLiveProcessor[{i}]", sampleRate=sampleRate) for i in range(2)]
         self.adcProcessor = [rfsoc_utility.RingBufferProcessor(name=f"AdcProcessor[{i}]", sampleRate=sampleRate) for i in range(4)]
+
+        self.dbSdTestProcessor = rfsoc.DbSdTestProcessor(name="DbSdProcessor")
 
         self.posCalcProc = rfsoc.SoftwarePosCalcProcessor(
             name="SoftwarePositionCalculation",
@@ -186,6 +189,9 @@ class Root(pr.Root):
             # self.ringBufferDacLive[i] >> self.dataWriter.getChannel(i + 16)
             self.ringBufferDacLive[i] >> self.dacLiveDropFifo[i] >> self.dacLiveProcessor[i]
             self.add(self.dacLiveProcessor[i])
+
+        self.add(self.dbSdTestProcessor)
+        self.dbSdTest >> self.dbSdTestProcessor
 
         # Create and connect XVC on localhost
         self.xvc = rogue.protocols.xilinx.Xvc(2542)

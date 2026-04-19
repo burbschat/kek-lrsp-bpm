@@ -8,3 +8,4 @@ from kek_lrsp_bpm._AttenuationCtrl import *
 from kek_lrsp_bpm._CalibrationCtrl import *
 from kek_lrsp_bpm._EvrGty import *
 from kek_lrsp_bpm._EvrDecoder import *
+from kek_lrsp_bpm._DbSdTestProcessor import *
