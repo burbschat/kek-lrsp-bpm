@@ -133,7 +133,7 @@ def process_shot(header, data, windows, coeffx, coeffy, degree, particle_type, c
 
     if check_plot_ax is not None:
         for i in range(wav.shape[0]):
-            check_plot_ax.plot(wav[i, :])
+            check_plot_ax.plot(wav[i, :], label=f"channel {i}")
 
     positions = np.array(positions)
     return ts, positions
@@ -258,6 +258,7 @@ def main():
     ref_bpm_name_2 = "QMD3P_K_1"
     target_bpm_name = "QMF4P_K_1"
 
+
     if particle_type == "e":
         windows = windows_electron
     elif particle_type == "p":
@@ -268,17 +269,19 @@ def main():
     coeffx, coeffy, degree = load_poly_coeffs(coeffs_file_path)
 
     check_plot = True
-    check_plot_num = 100
+    check_plot_num = 1
 
-    process_num = 3000
+    process_num = 60000
     skip_num = 3000
 
     if check_plot:
-        fig_wav, ax_wav = plt.subplots(1, 1, layout="constrained", figsize=(25, 8))
+        fig_wav, ax_wav = plt.subplots(1, 1, layout="constrained", figsize=(13, 4))
         ax_wav.grid()
         ax_wav.xaxis.set_major_locator(ticker.MultipleLocator(150))
+        first = True
         for lb, ub in windows.values():
-            ax_wav.axvspan(lb, ub, color="royalblue", alpha=0.5)
+            ax_wav.axvspan(lb, ub, color="royalblue", alpha=0.5, label="sum region" if first else None)
+            first = False
 
     with fileio.FileReader(files=infile_path) as fd:
         pos_all = []
@@ -321,7 +324,11 @@ def main():
         pos_all = np.array(pos_all)
 
     if check_plot:
-        fig_wav.savefig("waveforms_windows.png")
+        ax_wav.legend()
+        ax_wav.set_xlabel("sample nr.")
+        ax_wav.set_ylabel("ADC count")
+        ax_wav.set_xlim(0, 3300)
+        fig_wav.savefig("waveforms_windows.pdf")
 
     # Fit to extrapolate positon at third from other two
     fit_direction = 0
@@ -345,9 +352,10 @@ def main():
     # Compute residual between predicted and measured position
     pos_resid = pos_target - pos_pred
     # Plot residuals distribution
-    fig_resid, ax_resid = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))
+    fig_resid, ax_resid = plt.subplots(1, 1, layout="constrained", figsize=(7.5, 5))
     # Fit gaussian to the distribution
     resid_dist = stats.norm
+    pos_resid = pos_resid[np.abs(pos_resid) < 0.3]
     resid_fit_res = stats.fit(resid_dist, pos_resid, bounds=[(-20, 20), (1e-9, 20)])  # Set appropriate limits!
     resid_fit_curve_lsp = np.linspace(min(pos_resid), max(pos_resid), 100)
     resid_fit_curve_vals = resid_dist.pdf(resid_fit_curve_lsp, resid_fit_res.params.loc, resid_fit_res.params.scale)
@@ -358,17 +366,21 @@ def main():
     resolution_est = resid_fit_res.params.scale / np.sqrt(1 + popt[0]**2 + popt[1]**2)
     # Unite results in a plot
     ax_resid.hist(pos_resid, bins=30, color="royalblue", density=True, label="meas. pos. - pred. pos.")
-    ax_resid.plot(resid_fit_curve_lsp, resid_fit_curve_vals, color="red", label=f"Gaussian Fit: $\\sigma={resid_fit_res.params.scale}, \\mu={resid_fit_res.params.loc}$")
+    ax_resid.plot(resid_fit_curve_lsp, resid_fit_curve_vals, color="red", label=f"Gaussian Fit: $\\sigma={resid_fit_res.params.scale:.2g}, \\mu={resid_fit_res.params.loc:.2g}$")
     ax_resid.legend()
-    ax_resid.set_title(f"ref_bpm_1 = {ref_bpm_name_1}, ref_bpm_2 = {ref_bpm_name_2}, target_bpm = {target_bpm_name}\nresolution estimate = $\\sigma/\\sqrt{{1 + A^2 + B^2}} = {resolution_est}$")
+    ax_resid.set_title(f"ref_bpm_1 = {ref_bpm_name_1}, ref_bpm_2 = {ref_bpm_name_2}, target_bpm = {target_bpm_name}\nresolution estimate = $\\sigma/\\sqrt{{1 + A^2 + B^2}} = {resolution_est:.2g}$ mm")
+    ax_resid.set_xlabel(f"measured pos. - predicted pos. [mm]")
+    ax_resid.set_ylabel(f"normalized counts")
     direction_names = ["x", "y"]
-    fig_resid.suptitle(f"3-BMP Analysis (direction = {direction_names[fit_direction]}, n = {process_num})")
-    fig_resid.savefig("3bpm_results.png")
+    time_format = "%Y-%m-%d %H:%M"
+    fig_resid.suptitle(f"3-BMP Analysis (direction = {direction_names[fit_direction]}, n = {process_num})\ntime period: {ts_first.strftime(time_format)} to {ts_last.strftime(time_format)}")
+    fig_resid.savefig(f"3bpm_results_{particle_type}.pdf")
 
     # Scatter plot positions for all windows
     fig_pos, ax_pos = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))
     for i in range(pos_all.shape[1]):
-        ax_pos.scatter(pos_all[:, i, 0], pos_all[:, i, 1], marker="x", s=3, label=f"Window {i}")
+        # ax_pos.scatter(pos_all[:, i, 0], pos_all[:, i, 1], marker="x", s=3, label=f"Window {i}")
+        ax_pos.scatter(pos_all[:, i, 0], pos_all[:, i, 1], marker="x", s=3, label=f"Window {i}", c=np.arange(pos_all.shape[0]))
 
     ax_pos.legend()
     ax_pos.set_title(f"{process_num} shots (recorded {ts_first} to {ts_last})")
@@ -379,6 +391,12 @@ def main():
     fig_fit_gauss.suptitle(f"{process_num} shots (recorded {ts_first} to {ts_last})")
     fig_fit_gauss.savefig("fit_gauss.png")
 
+    # Scatter predicted against measured position
+    fig_predtar, ax_predtar = plt.subplots(1, 1, layout="constrained", figsize=(15, 10))
+    for i in range(pos_all.shape[1]):
+        ax_predtar.scatter(pos_target, pos_pred, marker="x", s=3, label=f"Window {i}", c=np.arange(pos_target.shape[0]))
+
+    fig_predtar.savefig("pred_target_scatter.png")
 
 if __name__ == "__main__":
     main()
