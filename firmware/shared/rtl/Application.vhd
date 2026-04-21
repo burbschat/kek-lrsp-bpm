@@ -74,11 +74,16 @@ architecture mapping of Application is
    constant EVR_DEC_REG_INDEX_C  : natural := 4;
    constant NUM_AXIL_MASTERS_C   : natural := 5;
 
-   -- TODO: Concat frame to ADC ring buffer data frame as a kind of header.
-   -- For now: Read out in separate stream for testing.
-   constant EVR_SD_INDEX_C : natural := 2;
+   constant NUM_AXIS_SLAVES_C : natural := 2;
+   -- For EVR metadata in separate stream for testing
+   -- constant NUM_AXIS_SLAVES_C : natural := 3;
+   -- constant EVR_SD_INDEX_C : natural := 2;
 
-   constant NUM_AXIS_SLAVES_C : natural := 3;
+   constant AXIS_RING_TDEST_C : slv(7 downto 0) := x"04";
+
+   constant METAMUX_NUM_AXIS_SLAVES_C : natural := 2;  -- Data stream (ring buffer) and meatdata stream
+   constant METAMUX_META_INDEX_C      : natural := 0;
+   constant METAMUX_RING_INDEX_C      : natural := 1;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, 28, 24);
 
@@ -90,6 +95,12 @@ architecture mapping of Application is
    -- Axi stream for ring buffers
    signal axisMasters : AxiStreamMasterArray(NUM_AXIS_SLAVES_C-1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
    signal axisSlaves  : AxiStreamSlaveArray(NUM_AXIS_SLAVES_C-1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+
+   -- Axi stream signals for merging with metadata stream
+   signal axisMastersMetamux : AxiStreamMasterArray(METAMUX_NUM_AXIS_SLAVES_C-1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
+   signal axisSlavesMetamux  : AxiStreamSlaveArray(METAMUX_NUM_AXIS_SLAVES_C-1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+   signal axisMasterMetamux  : AxiStreamMasterType                                        := AXI_STREAM_MASTER_INIT_C;
+   signal axisSlaveMetamux   : AxiStreamSlaveType                                         := AXI_STREAM_SLAVE_FORCE_C;
 
    signal adc      : Slv256Array(3 downto 0) := (others => (others => '0'));
    signal dac      : Slv256Array(1 downto 0) := (others => (others => '0'));
@@ -153,13 +164,64 @@ begin
          mAxisSlave   => dmaIbSlave);
 
 
+   -- Mux AXI streams from ring buffer (not live one) with metadata to create
+   -- input stream for the batcher.
+   U_MuxMeta : entity surf.AxiStreamMux
+      generic map (
+         TPD_G         => TPD_G,
+         NUM_SLAVES_G  => METAMUX_NUM_AXIS_SLAVES_C,
+         MODE_G        => "PASSTHROUGH",
+         PIPE_STAGES_G => 1)
+      port map (
+         -- Clock and reset
+         axisClk      => dmaClk,
+         axisRst      => dmaRst,
+         -- Slaves
+         sAxisMasters => axisMastersMetamux,
+         sAxisSlaves  => axisSlavesMetamux,
+         -- Master
+         mAxisMaster  => axisMasterMetamux,
+         mAxisSlave   => axisSlaveMetamux
+         );
+
+   -- Consider testing with AxiStreamBatcherAxil to mess with the settings if
+   -- the below does not work.
+   AxiStreamBatcher_inst : entity surf.AxiStreamBatcher
+      generic map(
+         TPD_G                        => TPD_G,
+         VERSION_G                    => 2,
+         MAX_NUMBER_SUB_FRAMES_G      => 2,  -- Only need header + one data frame
+         SUPER_FRAME_BYTE_THRESHOLD_G => 262144 + 2048,  -- Full buffer + header (could leave some extra?)
+         MAX_CLK_GAP_G                => 256,  -- Might want to make this longer depending on whether shot ID is distributed before or after each shot
+         AXIS_CONFIG_G                => DMA_AXIS_CONFIG_C
+         )
+      port map(
+         axisClk     => dmaClk,
+         axisRst     => dmaRst,
+         forceTerm   => '0',  -- Could use this to signal that a frame is complete and transmission should be terminated
+         idle        => open,           -- Indicates if in idle
+         -- Slave slot (stream input)
+         sAxisMaster => axisMasterMetamux,
+         sAxisSlave  => axisSlaveMetamux,
+         -- Master slot (stream output)
+         mAxisMaster => axisMasters(RING_INDEX_C),
+         mAxisSlave  => axisSlaves(RING_INDEX_C)
+         );
+
+
    -- Event receiver decoding
    U_EvrDecoder : entity work.EvrDecoder
       generic map(
          TPD_G            => TPD_G,
          N_TRGS_G         => EVR_N_TRGS_C,
          AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr,
-         SD_TDEST_ROUTE_G => x"12"
+         -- Use same tdest as ring buffer(?) It seems like the batcher gets rid
+         -- of the tdest from appended frames and moves them to a 'sub-frame
+         -- tail data field' (just append at the very end it seems?).
+         -- So whichever frame (metadata or ring) comes first decides TDEST?
+         SD_TDEST_ROUTE_G => AXIS_RING_TDEST_C
+       -- For EVR metadata in separate stream for testing
+       -- SD_TDEST_ROUTE_G => x"12"
          )
       port map(
          -- Serial data input
@@ -179,8 +241,10 @@ begin
          -- AXI-Stream Interface (axisClk domain)
          axisClk    => dmaClk,
          axisRst    => dmaRst,
-         axisMaster => axisMasters(EVR_SD_INDEX_C),
-         axisSlave  => axisSlaves(EVR_SD_INDEX_C),
+         -- axisMaster => axisMasters(EVR_SD_INDEX_C),
+         -- axisSlave  => axisSlaves(EVR_SD_INDEX_C),
+         axisMaster => axisMastersMetamux(METAMUX_META_INDEX_C),
+         axisSlave  => axisSlavesMetamux(METAMUX_META_INDEX_C),
 
          -- AXI-Lite register interface
          axilClk         => axilClk,
@@ -239,15 +303,15 @@ begin
          AXIL_BASE_ADDR_G       => AXIL_CONFIG_C(RING_INDEX_C).baseAddr,
          -- Ensure no overlap between routes for different buffers!
          ADC_TDEST_ROUTES_G     => (
-            0                   => x"04",
+            0                   => AXIS_RING_TDEST_C,
             others              => x"FF")
          )
       port map (
          -- DMA Interface (dmaClk domain)
          dmaClk          => dmaClk,
          dmaRst          => dmaRst,
-         dmaIbMaster     => axisMasters(RING_INDEX_C),
-         dmaIbSlave      => axisSlaves(RING_INDEX_C),
+         dmaIbMaster     => axisMastersMetamux(METAMUX_RING_INDEX_C),
+         dmaIbSlave      => axisSlavesMetamux(METAMUX_RING_INDEX_C),
          -- ADC/DAC Interface (dspClk domain)
          dspClk          => dspClk,
          dspRst          => dspRst,
