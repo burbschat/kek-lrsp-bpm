@@ -1,5 +1,6 @@
 import rogue.interfaces.stream as ris
 import pyrogue as pr
+import numpy as np
 
 import rogue
 rogue.Version.minVersion('6.2.0')
@@ -14,13 +15,17 @@ class DbSdTestProcessor(pr.DataReceiver):
         ris.Slave.__init__(self)
         pr.DataReceiver.__init__(self, enableOnStart=True, hideData=True, hidden=hidden, **kwargs)
 
-        # Not saving config/state to YAML
-        guiGroups = ['NoStream','NoState','NoConfig']
+        self.add(
+            pr.LocalVariable(
+                name="DataValues",
+                description="Decoded buffer data values",
+                typeStr="UInt16[np]",
+                value=0,
+                typeCheck=False,
+                hidden=False,
+            )
+        )
 
-        # Remove data variable from stream and server
-        self.Data.addToGroup('NoServe')
-        self.Data.addToGroup('NoStream')
-        self.Data.addToGroup('NoStatus')
 
     def _start(self):
         super()._start()
@@ -31,4 +36,8 @@ class DbSdTestProcessor(pr.DataReceiver):
         with self.root.updateGroup():
             pr.DataReceiver.process(self,frame)
 
-            print(self.Data.value())
+            # OMFG THE DATA IS BIG ENDIAN UINT16? WHY.
+            data_values = self.Data.value().view('>u2')
+            self.DataValues.set(data_values, write=True)
+            print(data_values)
+            print(data_values.shape)
