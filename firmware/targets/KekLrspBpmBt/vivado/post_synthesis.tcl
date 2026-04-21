@@ -134,7 +134,7 @@ ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffSel*}
 
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffTrg*}
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffValid*}
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/softTrig*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/readoutTrigSync*}
 
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/axis*}
 
