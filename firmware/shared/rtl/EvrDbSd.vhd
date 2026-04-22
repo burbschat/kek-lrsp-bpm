@@ -114,8 +114,8 @@ architecture rtl of EvrDbSd is
     signal receiveDone : sl;
     signal buffRst     : slv(1 downto 0);
 
-    signal readoutTrig : sl;
-    signal softTrig    : sl;
+    signal readoutTrigAsync : sl;
+    signal readoutTrigSync  : sl;
 
 
     constant NUM_AXIS_MASTERS_C : natural := 2;
@@ -157,14 +157,30 @@ begin
 
 
     -- Or the internal software trigger and external trigger
-    readoutTrig <= extTrig or softTrig;
+    readoutTrigAsync <= extTrig or axilR.softTrig;
+
+    -- TODO: Things likely to break if a buffer swap happens during an axi stream
+    -- transmission as we reset the buffer as part of the swap. It seem like the
+    -- axi stream transmission will still complete (as it ends when the number of
+    -- words fitting the buffer is transmitted) but the transmitted buffer data
+    -- will be corrupt as the read address jumps (as it references the firstAddr
+    -- of the buffer).
+    -- The best way out is probably to implement a non-ring buffer that can be 
+    -- read out over axi stream (i.e. every readout starts at address 0) OR make
+    -- a PR to upstream surf to add an option for such a readout mode?
+    -- Actually, the latter is probably very easy as firstAddr just would have 
+    -- to be replaced with 0 (AxiStreamRingBuffer.vhd, line 566).
+    -- Also: Only as many words as indicated by bufferLength (dynamic!) are read 
+    -- out. So perhaps we also want an option to force bufferLength to equal RAM
+    -- size as well? Otherwise we might have a hard time if the header size 
+    -- is no longer determenistic?
 
     -- Make buffer selection and trigger mutually exclusive
     buffValid(0) <= buffSel and writeEn;
     buffValid(1) <= not buffSel and writeEn;
     -- Read out the buffer that IS NOT currently used for writing!
-    buffTrg(0)   <= not buffSel and readoutTrig;
-    buffTrg(1)   <= buffSel and readoutTrig;
+    buffTrg(0)   <= not buffSel and readoutTrigSync;
+    buffTrg(1)   <= buffSel and readoutTrigSync;
     -- Reset always the buffer that IS currently selected for writing!
     -- This does not actually zero out the buffer so if a transmission has less
     -- data than the buffer size and the transmission lengths vary one must keep
@@ -238,8 +254,8 @@ begin
         port map(
             clk     => clk,
             rst     => rst,
-            dataIn  => axilR.softTrig,
-            dataOut => softTrig);
+            dataIn  => readoutTrigAsync,
+            dataOut => readoutTrigSync);
 
     dataComb : process(dataR, dataValid, data, dataK)
         variable dataVar : slv(7 downto 0);
