@@ -5,6 +5,7 @@ import importlib
 from sklearn.preprocessing import PolynomialFeatures
 import json
 import os
+import sys
 
 
 def load_poly_coeffs(coeffs_file_path):
@@ -615,6 +616,27 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
 
         self.add(
             pr.LocalVariable(
+                name="Metadata",
+                description="Metadata buffer (shared data) obtained from the event system",
+                typeStr="Float[np]",
+                value=np.zeros(shape=2048, dtype=np.uint16, order="C"),
+                hidden=True,
+                groups=guiGroups,  # Maybe also want metadata in the GUI?
+            )
+        )
+
+        self.add(
+            pr.LinkVariable(
+                name="ShotID",
+                description="Shot ID extracted from metadata buffer",
+                mode="RO",
+                dependencies=[self.Metadata],
+                linkedGet=lambda: self.Metadata.value()[2] ,
+            )
+        )
+
+        self.add(
+            pr.LocalVariable(
                 name="Time",
                 description="Time steps (ns)",
                 typeStr="Float[np]",
@@ -816,7 +838,25 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
     def process(self, frame):
         with self.root.updateGroup():
             # Convert the frame data into a numpy 16-bit integer array
-            dat = frame.getNumpy(0, frame.getPayload()).view(np.int16)
+            pl = frame.getNumpy(0, frame.getPayload())
+            # pl = pl.view(np.uint8)  # Should already be uint8...
+            btr_supfr_hdr_bytes = 2  # 2 byte super frame header
+            btr_subfrm_tail_bytes = 7  # 7 byte sub frame tail
+            batcher_header = pl[0:btr_supfr_hdr_bytes]
+            # nr. of samples in buffer * 4 channels * 2 byte per sample = offset in bytes
+            dat_bytes = 2 * self._bufferDepth * 4
+            dat = pl[btr_supfr_hdr_bytes : btr_supfr_hdr_bytes + dat_bytes].view(np.int16)
+            # Metadata is big endian as it originates from some PowerPC VNC device
+            meta = pl[btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes : -btr_subfrm_tail_bytes].view(">u2")
+            # Always pad to fixed size (2048 byte). Also for some reason the
+            # first entry is always a 1 which however apparently is not part of
+            # the buffer (other devices seem to ignore it?).
+            # TODO: 2048 is max size but probably 1024 suffices in practice?
+            meta = meta[1:]
+            meta_padded = np.pad(meta, (0, max(0, 2048 - meta.size)))
+            # np.set_printoptions(threshold=sys.maxsize)
+            # print("Batcher header:", batcher_header)
+            # print("Metadata:", meta_padded)
 
             # Reshape the array into (4, N) format
             waveformData = dat.reshape(-1, 4).T  # Transpose to get (4, N) shape
@@ -932,6 +972,12 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 if atLeastOneWindowUpdated:
                     for j in range(4):
                         self.WaveformData[j].set(waveformData[j, :], write=True)
+
+                    # TODO: Can we replace charge threshold with a check of
+                    # some information in the metadata? That would be optimal.
+
+                    # Write metadata buffer from last shot
+                    self.Metadata.set(meta_padded, write=True)
 
             # Set the flag
             self.NewDataReady.set(True)

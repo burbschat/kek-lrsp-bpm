@@ -102,6 +102,11 @@ architecture mapping of Application is
    signal axisMasterMetamux  : AxiStreamMasterType                                        := AXI_STREAM_MASTER_INIT_C;
    signal axisSlaveMetamux   : AxiStreamSlaveType                                         := AXI_STREAM_SLAVE_FORCE_C;
 
+   -- Stick the batched stream into another mux to set tdest which gets stripped
+   -- by the batcher (only one stream but must be array type for the mux).
+   signal axisMastersNodest : AxiStreamMasterArray(0 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
+   signal axisSlavesNodest  : AxiStreamSlaveArray(0 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+
    signal adc      : Slv256Array(3 downto 0) := (others => (others => '0'));
    signal dac      : Slv256Array(1 downto 0) := (others => (others => '0'));
    signal loopback : Slv256Array(1 downto 0) := (others => (others => '0'));
@@ -165,7 +170,8 @@ begin
 
 
    -- Mux AXI streams from ring buffer (not live one) with metadata to create
-   -- input stream for the batcher.
+   -- input stream for the batcher. No reason to put TDEST here as the batcher
+   -- strips them anyways.
    U_MuxMeta : entity surf.AxiStreamMux
       generic map (
          TPD_G         => TPD_G,
@@ -181,17 +187,46 @@ begin
          sAxisSlaves  => axisSlavesMetamux,
          -- Master
          mAxisMaster  => axisMasterMetamux,
-         mAxisSlave   => axisSlaveMetamux
-         );
+         mAxisSlave   => axisSlaveMetamux);
+
+   -- Use mux simply to stick on the correct TDEST lost during batching.
+   -- Is there a smarter way to do this? Driving the tdest signal directly should
+   -- work but then one has to tear apart the records...
+   -- Must use separate mux as the existing one shall remain in PASSTHROUGH to keep
+   -- tdest from the other (live) buffers.
+   -- Maybe mux is fine, perhaps I want to add another batched stream later? (maybe not)
+   U_MuxMetaSetDest : entity surf.AxiStreamMux
+      generic map (
+         TPD_G          => TPD_G,
+         NUM_SLAVES_G   => 1,
+         MODE_G         => "ROUTED",
+         TDEST_ROUTES_G => (
+            0           => AXIS_RING_TDEST_C
+            ),
+         PIPE_STAGES_G  => 1)
+      port map (
+         -- Clock and reset
+         axisClk      => dmaClk,
+         axisRst      => dmaRst,
+         -- Slaves
+         sAxisMasters => axisMastersNodest,
+         sAxisSlaves  => axisSlavesNodest,
+         -- Master
+         mAxisMaster  => axisMasters(RING_INDEX_C),
+         mAxisSlave   => axisSlaves(RING_INDEX_C));
 
    -- Consider testing with AxiStreamBatcherAxil to mess with the settings if
    -- the below does not work.
+   -- TODO: Just use the axil version because why not.
    AxiStreamBatcher_inst : entity surf.AxiStreamBatcher
       generic map(
          TPD_G                        => TPD_G,
          VERSION_G                    => 2,
          MAX_NUMBER_SUB_FRAMES_G      => 2,  -- Only need header + one data frame
-         SUPER_FRAME_BYTE_THRESHOLD_G => 262144 + 2048,  -- Full buffer + header (could leave some extra?)
+         -- Must fit full buffer (if address width=8: 2**8 * 16 samples/cycle * 4
+         -- channels * 2 byte/sample = 32768) + maximum shared data width = 2048
+         -- byte.
+         SUPER_FRAME_BYTE_THRESHOLD_G => 65536,  -- 2**16 suffices if address width is 8
          MAX_CLK_GAP_G                => 256,  -- Might want to make this longer depending on whether shot ID is distributed before or after each shot
          AXIS_CONFIG_G                => DMA_AXIS_CONFIG_C
          )
@@ -204,8 +239,8 @@ begin
          sAxisMaster => axisMasterMetamux,
          sAxisSlave  => axisSlaveMetamux,
          -- Master slot (stream output)
-         mAxisMaster => axisMasters(RING_INDEX_C),
-         mAxisSlave  => axisSlaves(RING_INDEX_C)
+         mAxisMaster => axisMastersNodest(0),
+         mAxisSlave  => axisSlavesNodest(0)
          );
 
 
@@ -215,10 +250,8 @@ begin
          TPD_G            => TPD_G,
          N_TRGS_G         => EVR_N_TRGS_C,
          AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr,
-         -- Use same tdest as ring buffer(?) It seems like the batcher gets rid
-         -- of the tdest from appended frames and moves them to a 'sub-frame
-         -- tail data field' (just append at the very end it seems?).
-         -- So whichever frame (metadata or ring) comes first decides TDEST?
+         -- Set tdest but actually we don't care as here a batcher is used which
+         -- strips the tdest so we have to again add it after batching.
          SD_TDEST_ROUTE_G => AXIS_RING_TDEST_C
        -- For EVR metadata in separate stream for testing
        -- SD_TDEST_ROUTE_G => x"12"
