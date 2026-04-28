@@ -18,6 +18,7 @@ import rogue.interfaces.memory
 
 import pyrogue as pr
 import pyrogue.protocols
+import pyrogue.protocols.epicsV7
 import pyrogue.utilities.fileio
 import pyrogue.utilities.prbs
 import pyrogue.interfaces.stream
@@ -43,6 +44,8 @@ class Root(pr.Root):
         signalMapsIndexFile="config/SignalMaps/SignalMapsIndex.json",
         sampleRate=5.0e9,  # Units of Hz, depends on PLL config
         zmqSrvPort=9099,  # Set to zero if dynamic (instead of static)
+        nWindows=2,
+        epicsPrefix=None,
         **kwargs,
     ):
         super().__init__(timeout=5.0, **kwargs)
@@ -68,6 +71,13 @@ class Root(pr.Root):
             self.signalMapsIndexFile = signalMapsIndexFile
 
         self.defaultClkSource = defaultClkSource
+
+        # BPM type ('bt' or 'inj')
+        self.bpmType = bpmType
+        # Number of windows for which to integrate the signal and compute a position
+        self.nWindows = nWindows
+        # Prefix string used for EPICS PVs
+        self.epicsPrefix = epicsPrefix
 
         # File writer
         self.dataWriter = pr.utilities.fileio.StreamWriter(name="DataWriter")
@@ -163,11 +173,11 @@ class Root(pr.Root):
             name="SoftwarePositionCalculation",
             sampleRate=sampleRate,
             signalMapIndexFile=self.signalMapsIndexFile,  # Default value, can be changed dynamically
-            polyVarsType=bpmType,  # bt or injp
+            polyVarsType=self.bpmType,  # bt or injp
             bufferDepth=2**8 * 16,  # TODO: Make dynamic!
-            nWindows=5,
+            nWindows=self.nWindows,
             hidden=False,
-            hardDisableFit=True,  # Maybe implement command line argument to enable/disable fit/poly...
+            hardDisableFit=bpmType == "bt",  # BT only requires poly
         )
 
         # Connect the rogue stream arrays: ADC Ring Buffer Paths
@@ -197,6 +207,66 @@ class Root(pr.Root):
         self.xvc = rogue.protocols.xilinx.Xvc(2542)
         self.addProtocol(self.xvc)
         self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
+
+        ##################################################################################
+        ##                              EPICS Access
+        ##################################################################################
+
+        # Only enable EPICS bridging when prefix specified
+        if self.epicsPrefix is not None:
+            # Build map subset of available rogue variables to EPICS PVs
+            self.pvMap = {}
+
+            # Attenuators
+            self.pvMap["Root.AttenuationCtrl.AttChA"] = "AttChA"
+            self.pvMap["Root.AttenuationCtrl.AttChB"] = "AttChB"
+            self.pvMap["Root.AttenuationCtrl.AttChC"] = "AttChC"
+            self.pvMap["Root.AttenuationCtrl.AttChD"] = "AttChD"
+
+            # Position calculation related variables (for each window). Some are
+            # only available if poly/fit poscalc is not hard disabled.
+            poscalcPath = "Root.SoftwarePositionCalculation"
+
+            self.pvMap[f"{poscalcPath}.ChannelCorrections"] = "CHCORR"
+
+            if not self.posCalcProc._hardDisablePoly:
+                self.pvMap[f"{poscalcPath}.polyEn"] = "POLYEN"
+            if not self.posCalcProc._hardDisableFit:
+                self.pvMap[f"{poscalcPath}.fitEn"] = "FITEN"
+
+            self.pvMap[f"{poscalcPath}.NumWindows"] = "NWIN"
+            for i in range(self.nWindows):
+                self.pvMap[f"{poscalcPath}.WindowOpen[{i}]"] = f"WINOP_{i+1}"
+                self.pvMap[f"{poscalcPath}.WindowClose[{i}]"] = f"WINCL_{i+1}"
+                self.pvMap[f"{poscalcPath}.WindowOpenRaw[{i}]"] = f"WINOP:RAW_{i+1}"
+                self.pvMap[f"{poscalcPath}.WindowCloseRaw[{i}]"] = f"WINCL:RAW_{i+1}"
+                self.pvMap[f"{poscalcPath}.Sums[{i}]"] = f"SUMS_{i+1}"
+                self.pvMap[f"{poscalcPath}.SumsSq[{i}]"] = f"SUMSSQ_{i+1}"
+                self.pvMap[f"{poscalcPath}.Charge[{i}]"] = f"Q_{i+1}"
+                self.pvMap[f"{poscalcPath}.ChargeThreshold[{i}]"] = f"QTHR_{i+1}"
+                if not self.posCalcProc._hardDisablePoly:
+                    self.pvMap[f"{poscalcPath}.XposPoly[{i}]"] = f"X_Poly{i+1}"
+                    self.pvMap[f"{poscalcPath}.YposPoly[{i}]"] = f"Y_Poly{i+1}"
+                if not self.posCalcProc._hardDisableFit:
+                    self.pvMap[f"{poscalcPath}.XposFit[{i}]"] = f"X_{i+1}"
+                    self.pvMap[f"{poscalcPath}.YposFit[{i}]"] = f"Y_{i+1}"
+                    self.pvMap[f"{poscalcPath}.XposFitMaskedStd[{i}]"] = f"XMSKSTD_{i+1}"
+                    self.pvMap[f"{poscalcPath}.YposFitMaskedStd[{i}]"] = f"YMSKSTD_{i+1}"
+                    self.pvMap[f"{poscalcPath}.XposFitMaskedMean[{i}]"] = f"XMSKMEAN_{i+1}"
+                    self.pvMap[f"{poscalcPath}.YposFitMaskedMean[{i}]"] = f"YMSKMEAN_{i+1}"
+                    for j in range(4):
+                        self.pvMap[f"{poscalcPath}.XposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"XMSK{0xf^(0b1<<j):04b}_{i+1}"
+                        self.pvMap[f"{poscalcPath}.YposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"YMSK{0xf^(0b1<<j):04b}_{i+1}"
+
+            # Instantiate the protocol (self.add call not required for this protocol!)
+            self.epicsV7 = pyrogue.protocols.epicsV7.EpicsPvServer(
+                base=self.epicsPrefix,
+                root=self,
+                pvMap=self.pvMap,
+            )
+
+            # Print the mapped PVs
+            self.epicsV7.dump()
 
     ##################################################################################
 

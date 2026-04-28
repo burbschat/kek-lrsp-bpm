@@ -122,10 +122,12 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         # Do not attempt to import shared library if fit hard disabled
         self._posFitModule = None
         if not self._hardDisableFit:
-            if importlib.util.find_spec("kek_bpm_rfsoc_stripline.PosFit") is None:
+            if importlib.util.find_spec("kek_lrsp_bpm.PosFit") is None:
                 print("Could not find FitPos shared object. Make sure to compile the CPP position fit code.")
-                exit(1)
-            self._posFitModule = importlib.import_module("kek_bpm_rfsoc_stripline.PosFit")
+                # Do not exit here but rather proceed to try to load the
+                # non-existing module which will throw an appropriate
+                # exception.
+            self._posFitModule = importlib.import_module("kek_lrsp_bpm.PosFit")
 
         # Number of windows for which to integrate the waveform and compute
         # a position.
@@ -180,7 +182,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LinkVariable(
                     name=f"WindowOpen[{i}]",
                     description="Integration window left boundary in ns",
-                    typeStr="Float",
+                    typeStr="Float64",
                     units="ns",
                     dependencies=[self.WindowOpenRaw[0]],
                     # Must use default arguments to ensure index properly resolved in each lambda!
@@ -194,7 +196,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LinkVariable(
                     name=f"WindowClose[{i}]",
                     description="Integration window left boundary in ns",
-                    typeStr="Float",
+                    typeStr="Float64",
                     units="ns",
                     dependencies=[self.WindowCloseRaw[i]],
                     # Must use default arguments to ensure index properly resolved in each lambda!
@@ -207,7 +209,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         # self.add(pr.LocalVariable(
         #     name        = f'SumPower',
         #     description = 'Power to which the absolute value of the signal is raised before summing',
-        #     typeStr     = 'Float',
+        #     typeStr     = 'Float64',
         #     value       = 1,  # For now, leave this 1 (just add the option to try out 2)
         #     hidden      = False,
         # ))
@@ -216,7 +218,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             pr.LocalVariable(
                 name="ChannelCorrections",
                 description="Correction factors to apply to each channel reading (waveform sum)",
-                typeStr="Float[np]",
+                typeStr="Float64[np]",
                 value=np.array([1, 1, 1, 1]),
                 hidden=False,
             )
@@ -288,7 +290,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             #     pr.LocalVariable(
             #         name="PolyCoeffC",
             #         description="Charge calculation coefficients",
-            #         typeStr="Float[np]",
+            #         typeStr="Float64[np]",
             #         value=np.array([0]),
             #         groups=["polyPosCalc"],
             #         hidden=False,
@@ -338,7 +340,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="CppFitterXinit",
                     description="Initial x value for CPP signal map fitter",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.0,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -350,7 +352,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="CppFitterYinit",
                     description="Initial y value for CPP signal map fitter",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.0,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -362,7 +364,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="RhoBeg",
                     description="Initial value of rho (trust region) for bobyaqa minimizer. Tune for fit stability.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.5,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -374,7 +376,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="RhoEnd",
                     description="Final value of rho (trust region) for bobyaqa minimizer. Dictates fit result precicsion.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=1e-12,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -398,7 +400,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="FitLimX",
                     description="Limit on x coordinate used during minimization. Symetric around origin. Smaller region stabilizes fit.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=6.4,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -410,7 +412,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="FitLimY",
                     description="Limit on y coordinate used during minimization. Symetric around origin. Smaller region stabilizes fit.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=3.7,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -424,7 +426,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name=f"Charge[{i}]",
                     description="bunch charge variable",
-                    typeStr="Float",
+                    typeStr="Float64",
                     mode="RO",
                     value=0.0,
                     hidden=False,
@@ -436,7 +438,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"XposPoly[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["polyPosCalc"],
@@ -448,7 +450,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"YposPoly[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["polyPosCalc"],
@@ -461,7 +463,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"XposFit[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["fitPosCalc"],
@@ -473,7 +475,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"YposFit[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["fitPosCalc"],
@@ -487,7 +489,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         pr.LocalVariable(
                             name=f"XposFitMasked{0xf^(0b1<<j):04b}[{i}]",
                             description="position variable with masked channels",
-                            typeStr="Float",
+                            typeStr="Float64",
                             mode="RO",
                             value=0.0,
                             hidden=False,
@@ -498,7 +500,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         pr.LocalVariable(
                             name=f"YposFitMasked{0xf^(0b1<<j):04b}[{i}]",
                             description="position variable with masked channels",
-                            typeStr="Float",
+                            typeStr="Float64",
                             mode="RO",
                             value=0.0,
                             hidden=False,
@@ -509,7 +511,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"XposFitMaskedStd[{i}]",
                         description="standard deviation of position variables with masked channels",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["fitPosCalc"],
@@ -521,7 +523,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"YposFitMaskedStd[{i}]",
                         description="standard deviation of position variables with masked channels",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["fitPosCalc"],
@@ -533,7 +535,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"XposFitMaskedMean[{i}]",
                         description="mean of position variables with masked channels",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["fitPosCalc"],
@@ -545,7 +547,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"YposFitMaskedMean[{i}]",
                         description="mean of position variables with masked channels",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
                         value=0.0,
                         groups=["fitPosCalc"],
@@ -557,7 +559,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name=f"ChargeThreshold[{i}]",
                     description="Threshold below which measurements are considered empty shots and discarded.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.0,
                     hidden=False,
                 )
@@ -618,7 +620,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             pr.LocalVariable(
                 name="Metadata",
                 description="Metadata buffer (shared data) obtained from the event system",
-                typeStr="Float[np]",
+                typeStr="Float64[np]",
                 value=np.zeros(shape=2048, dtype=np.uint16, order="C"),
                 hidden=True,
                 groups=guiGroups,  # Maybe also want metadata in the GUI?
@@ -639,7 +641,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             pr.LocalVariable(
                 name="Time",
                 description="Time steps (ns)",
-                typeStr="Float[np]",
+                typeStr="Float64[np]",
                 value=timeSteps,
                 hidden=True,
                 groups=guiGroups,

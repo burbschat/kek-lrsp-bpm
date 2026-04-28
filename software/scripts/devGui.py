@@ -62,6 +62,14 @@ if __name__ == "__main__":
         help     = "Sets the default YAML configuration file to be loaded at the root.start()",
     )
 
+    parser.add_argument(
+        "--epicsPrefix",
+        type     = str,
+        required = False,
+        default  = None,   # IOC is only initialized when value is other than None
+        help     = "Prefix for EPICS CA IOC PVs. If not specified IOC will be disabled.",
+    )
+
     # TODO: Not sure how close the RFDC PLL config frequencies should be to the
     # actual sample rate. If problems with e.g. spurs are encountered, perhaps
     # try adjusting the RFDC IP cores config. However I do not believe that
@@ -138,6 +146,8 @@ if __name__ == "__main__":
         lmkConfig   = lmk_config_file,
         sampleRate  = sampleRate,
         zmqSrvPort  = args.zmqSrvPort,
+        nWindows    = 5,
+        epicsPrefix = args.epicsPrefix,
     ) as root:
 
         ######################
