@@ -45,11 +45,11 @@ include_directories(${ROGUE_INCLUDE_DIRS})
 add_library(PosFit SHARED src/PosFit.cpp src/PosFit.h src/bobyqa/bobyqa.cc src/bobyqa/bobyqa.h)
 
 # Set output to TOP/lib, remove lib prefix
-set_target_properties(PosFit PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/python/kek_bpm_rfsoc_stripline/)
+set_target_properties(PosFit PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/python/kek_lrsp_bpm/)
 set_target_properties(PosFit PROPERTIES PREFIX "")
 
 message(ROGUE_LIBRARIES="${ROGUE_LIBRARIES}")
 message(PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 # Link to rogue core
-TARGET_LINK_LIBRARIES(PosFit ${ROGUE_LIBRARIES} PRIVATE GSL::gsl)
+TARGET_LINK_LIBRARIES(PosFit PRIVATE ${ROGUE_LIBRARIES} GSL::gsl)
