@@ -336,6 +336,23 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 )
             )
 
+            # CPP fitter loads the map directly (for performance) but also
+            # mirror its contents to a variable to make it accessible for use
+            # in the GUI. This should be the loaded signal map so set this in
+            # the same function as used for instantiating/updating CPP fitter.
+            self.add(
+                pr.LocalVariable(
+                    name="SignalMapData",
+                    description="Signals map data",
+                    mode="RO",
+                    typeStr="Unknown",
+                    type=np.array,
+                    value=np.array([0]),
+                    groups=["fitPosCalc"],
+                    hidden=False,
+                )
+            )
+
             self.add(
                 pr.LocalVariable(
                     name="CppFitterXinit",
@@ -670,6 +687,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         node_pointer.addToGroup("Hidden")
 
     # Compute position using polynomials
+    # TODO: Currently coefficients are shared. If different coefficients should
+    # be used for different windows this would have to be changed, i.e. add
+    # coefficient variables for each window.
     def _computePosPoly(self, sums: np.array):
         # Get coefficient matrices
         coeffx = self.PolyCoeffX.get()
@@ -754,6 +774,11 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             # Re-initialize CPP fitter
             self._initCppFitter()
 
+    def _updateSignalMapVar(self, signalMapPath):
+        data_array = np.loadtxt(signalMapPath, delimiter=",", dtype=np.float64)
+        print(data_array)
+        self.SignalMapData.set(data_array)
+
     def _initCppFitter(self):
         # Read metadata from index
         selectedMapIndex = self._signalMapIndex[self.SignalMapName.get()]
@@ -794,6 +819,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         xlim = self.FitLimX.get()
         ylim = self.FitLimY.get()
         self._cppFitter.setLim(-xlim, xlim, -ylim, ylim)
+
+        # Update the value of variable containing signal map values (for use in GUI)
+        self._updateSignalMapVar(signalMapPath)
 
     def _fitPosCpp(self, v1, v2, v3, v4, en1, en2, en3, en4):
         # Must make sure to convert to python float (numpy float won't work)
