@@ -78,6 +78,8 @@ class GuiTop(Display):
         dacDisplayLive.color = self.channelColors * 4
         self.tab.addTab(dacDisplayLive, "DAC Live")
 
+        customColors = ["red", "royalblue"]
+
         # ADC Display (Tab Index=4)
         self.tab.addTab(
             guiUser.WaveformDisplay(
@@ -85,6 +87,7 @@ class GuiTop(Display):
                 init_channel=Channel,
                 nodePath="SoftwarePositionCalculation",
                 waveformNodeName="WaveformData",
+                customRegionColors=customColors,
             ),
             "ADC",
         )
@@ -98,7 +101,7 @@ class GuiTop(Display):
                 init_channel=Channel,
                 invertX=True,
                 nWindows=2,
-                customColors=["red", "royalblue"],
+                customColors=customColors,
             ),
             "Pos Scatter (Fit)",
         )
@@ -108,7 +111,7 @@ class GuiTop(Display):
                 init_channel=Channel,
                 invertX=True,
                 nWindows=2,
-                customColors=["red", "royalblue"],
+                customColors=customColors,
                 posVarType="Poly",
             ),
             "Pos Scatter (Poly)",

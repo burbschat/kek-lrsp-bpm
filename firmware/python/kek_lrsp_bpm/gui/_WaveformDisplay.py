@@ -2,6 +2,7 @@ from pydm.widgets.frame import PyDMFrame
 from pydm.widgets import PyDMWaveformPlot, PyDMPushButton
 
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QVBoxLayout, QFormLayout, QGroupBox, QDoubleSpinBox
 
 from pyrogue.pydm.data_plugins.rogue_plugin import nodeFromAddress
@@ -103,6 +104,7 @@ class WaveformDisplay(PyDMFrame):
         background=[0, 0, 0, 255],
         minimumWidth=10,
         electrode_colors={"A": "royalblue", "B": "orange", "C": "red", "D": "limegreen"},
+        customRegionColors = None,
     ):
         PyDMFrame.__init__(self, parent, init_channel)
         self.background = background
@@ -112,6 +114,8 @@ class WaveformDisplay(PyDMFrame):
         self.waveformNodeName = waveformNodeName
         self.path = f"{self.channel}.{self.nodePath}"
         self.RxEnable = nodeFromAddress(f"{self.path}.RxEnable")
+
+        self.customRegionColors = customRegionColors
 
         # Make sure this plot does not excessively restrict min size
         self.setMinimumWidth(minimumWidth)
@@ -139,7 +143,10 @@ class WaveformDisplay(PyDMFrame):
         for i in range(self._num_windows):
             # color = (255, 0, 0, 50)  # Make sure this has transparency!
             # color = (0, 0, 255, 50)  # Make sure this has transparency!
-            color = pg.intColor(i, hues=self._num_windows)  # Get a color
+            if self.customRegionColors is not None and i < len(self.customRegionColors):
+                color = QColor(self.customRegionColors[i])
+            else:
+                color = pg.intColor(i, hues=self._num_windows)  # Get a color
             color.setAlpha(50)
             shreg = self.sigPlot.addShadedRegion(
                 f"{self.channel}.SoftwarePositionCalculation.WindowOpen[{i}]",
