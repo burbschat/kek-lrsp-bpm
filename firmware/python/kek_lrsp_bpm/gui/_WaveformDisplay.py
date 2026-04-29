@@ -12,7 +12,12 @@ from pyqtgraph import TextItem
 from pyqtgraph import LinearRegionItem
 from pydm import PyDMChannel
 import numpy as np
+import pyqtgraph as pg
 
+# Reloading with labels breaks thisngs and I cannot figure out why.
+# Something keeps calling the receive value callbacks even if I try to
+# disconnect all PyDM channels.
+LABELS = False
 
 class ShadedRegionItem:
     def __init__(self, lowerBoundAddr, upperBoundAddr, regionLabel=None, **kwargs):
@@ -33,7 +38,7 @@ class ShadedRegionItem:
         self.region = LinearRegionItem(values=(self.lower, self.upper), movable=False, **kwargs)
 
         self.label = None
-        if regionLabel is not None:
+        if regionLabel is not None and LABELS:
             self.label = TextItem(text=regionLabel, color="#aaaaaa", anchor=(0.5, 0.0))
 
         self.lower_channel.connect()
@@ -60,7 +65,8 @@ class ShadedRegionItem:
             self.upper = self.latest_upper
         # print(f"Setting bounds: {self.lower, self.upper}")
         self.region.setRegion((self.lower, self.upper))
-        self.label.setX((self.upper + self.lower) / 2)
+        if LABELS:
+            self.label.setX((self.upper + self.lower) / 2)
 
 # Inherit from PyDMWaveformPlot adding a basic way for shading regions
 class PyDMWaveformPlotRanges(PyDMWaveformPlot):
@@ -69,12 +75,14 @@ class PyDMWaveformPlotRanges(PyDMWaveformPlot):
 
         self.regions = []
 
-        self.sigYRangeChanged.connect(self.update_labels)
+        if LABELS:
+            self.sigYRangeChanged.connect(self.update_labels)
 
     def addShadedRegion(self, lowerBoundChannel, upperBoundChannel, **kwargs):
         region = ShadedRegionItem(lowerBoundChannel, upperBoundChannel, **kwargs)
         self.addItem(region.region)
-        self.addItem(region.label)
+        if LABELS:
+            self.addItem(region.label)
         self.regions += [region]
         return region
 
@@ -123,13 +131,16 @@ class WaveformDisplay(PyDMFrame):
         # Remove all present shaded regions
         for shreg in self.sigPlot.regions:
             self.sigPlot.removeItem(shreg.region)
-            self.sigPlot.removeItem(shreg.label)
+            if LABELS:
+                self.sigPlot.removeItem(shreg.label)
         self.sigPlot.regions.clear()
 
         # Draw new shaded regions
         for i in range(self._num_windows):
             # color = (255, 0, 0, 50)  # Make sure this has transparency!
-            color = (0, 0, 255, 50)  # Make sure this has transparency!
+            # color = (0, 0, 255, 50)  # Make sure this has transparency!
+            color = pg.intColor(i, hues=self._num_windows)  # Get a color
+            color.setAlpha(50)
             shreg = self.sigPlot.addShadedRegion(
                 f"{self.channel}.SoftwarePositionCalculation.WindowOpen[{i}]",
                 f"{self.channel}.SoftwarePositionCalculation.WindowClose[{i}]",
@@ -138,7 +149,8 @@ class WaveformDisplay(PyDMFrame):
             )
 
         # Call once to position labels correctly
-        self.sigPlot.update_labels(self.sigPlot.getViewBox())
+        if LABELS:
+            self.sigPlot.update_labels(self.sigPlot.getViewBox())
 
     def resetScales(self):
         # Reset the auto-ranging
