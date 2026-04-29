@@ -60,13 +60,13 @@ class GuiTop(Display):
         self.tab = QTabWidget()
         vb.addWidget(self.tab)
 
-        # Live Display (Tab Index=0)
-        sys = SystemWindow(parent=None, init_channel=Channel)
-        self.tab.addTab(sys, "System")
+        # System (Tab Index=0)
+        sysWin = SystemWindow(parent=None, init_channel=Channel)
+        self.tab.addTab(sysWin, "System")
 
-        # Live Display (Tab Index=1)
-        var = DebugTree(parent=None, init_channel=Channel)
-        self.tab.addTab(var, "Debug Tree")
+        # Debug Tree (Tab Index=1)
+        debugTree = DebugTree(parent=None, init_channel=Channel)
+        self.tab.addTab(debugTree, "Debug Tree")
 
         # ADC Live Display (Tab Index=2)
         adcDisplayLive = gui.LiveDisplay(parent=None, init_channel=Channel, dispType="AdcLive", numCh=self.numAdcCh)
@@ -89,8 +89,33 @@ class GuiTop(Display):
             "ADC",
         )
 
+        # BPM Position Scatter Plot (Tab Index=5, 6)
+        # TODO: For BT we probably want a different variation of those: Poly
+        # only, no signal map. Put some sort of argument for selection maybe...
+        self.tab.addTab(
+            guiUser.BpmPosScatter(
+                parent=None,
+                init_channel=Channel,
+                invertX=True,
+                nWindows=2,
+                customColors=["red", "royalblue"],
+            ),
+            "Pos Scatter (Fit)",
+        )
+        self.tab.addTab(
+            guiUser.BpmPosScatter(
+                parent=None,
+                init_channel=Channel,
+                invertX=True,
+                nWindows=2,
+                customColors=["red", "royalblue"],
+                posVarType="Poly",
+            ),
+            "Pos Scatter (Poly)",
+        )
+
         # Set the default Tab view
-        self.tab.setCurrentIndex(2)
+        self.tab.setCurrentIndex(4)
 
         # Resize the window
         self.resize(self.sizeX, self.sizeY)
