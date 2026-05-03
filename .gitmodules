@@ -1,6 +1,7 @@
 [submodule "firmware/submodules/ruckus"]
 	path = firmware/submodules/ruckus
-	url = ../../slaclab/ruckus.git
+    #url = ../../slaclab/ruckus.git
+    url = git@github.com:burbschat/ruckus.git
 [submodule "firmware/submodules/surf"]
 	path = firmware/submodules/surf
     #url = ../../slaclab/surf.git
