@@ -18,12 +18,11 @@ use work.AppPkg.all;
 entity EvrDbSd is
     generic(
         TPD_G              : time            := 1 ns;
+        SYNTH_MODE_G       : string          := "inferred";
         SD_EN              : boolean         := true;
-        SD_BUFF_LEN        : integer         := 2048;  -- Allocated SD buffer length
-        SD_BUFF_ADDR_WIDTH : integer         := 11;  -- Allocated SD buffer length
+        SD_BUFF_ADDR_WIDTH : integer         := 11;  -- Allocated SD buffer size
         SD_START_K         : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
         SD_END_K           : slv(7 downto 0) := x"3C";  -- K.28.1
-        TDEST_ROUTE_G      : slv(7 downto 0) := x"00";
         AXIL_BASE_ADDR_G   : slv(31 downto 0));
     port (
         clk       : in sl;
@@ -64,24 +63,22 @@ architecture rtl of EvrDbSd is
         state       : StateType;
         alignDone   : sl;
         isSd        : sl;
-        buffSel     : sl;
         writeEn     : sl;
         recBytesCnt : slv(15 downto 0);
         sdData      : slv(7 downto 0);
         distrBus    : slv(7 downto 0);
-        recDoneStrb : sl;
+        recDone     : sl;
     end record DataRegType;
 
     constant DATA_REG_INIT_C : DataRegType := (
         state       => IDLE_S,
         alignDone   => '0',
         isSd        => '0',
-        buffSel     => '0',
         writeEn     => '0',
         recBytesCnt => (others => '0'),
         sdData      => (others => '0'),
         distrBus    => (others => '0'),
-        recDoneStrb => '0'
+        recDone     => '0'
         );
 
     type AxilRegType is record
@@ -106,23 +103,14 @@ architecture rtl of EvrDbSd is
     signal axilR   : AxilRegType := AXIL_REG_INIT_C;
     signal axilRin : AxilRegType;
 
-    signal buffTrg     : slv(1 downto 0);
-    signal buffSel     : sl;
-    signal buffValid   : slv(1 downto 0);
-    signal writeEn     : sl;
-    signal sdData      : slv(7 downto 0);
-    signal receiveDone : sl;
-    signal buffRst     : slv(1 downto 0);
-
     signal readoutTrigAsync : sl;
     signal readoutTrigSync  : sl;
 
+    constant SD_BUFF_LEN : integer := 2**SD_BUFF_ADDR_WIDTH;
 
-    constant NUM_AXIS_MASTERS_C : natural := 2;
-
-    constant NUM_AXIL_MASTERS_C : natural := 3;
-    constant RING_INDEX_START_C : natural := 0;  -- Two slots used at this index and this index + 1
-    constant REG_INDEX_C        : natural := 2;
+    constant NUM_AXIL_MASTERS_C : natural := 2;
+    constant FB_INDEX_C         : natural := 0;  -- Two slots used at this index and this index + 1
+    constant REG_INDEX_C        : natural := 1;
 
     constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, 16, 12);
 
@@ -130,9 +118,6 @@ architecture rtl of EvrDbSd is
     signal axilReadSlaves   : AxiLiteReadSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0)  := (others => AXI_LITE_READ_SLAVE_EMPTY_DECERR_C);
     signal axilWriteMasters : AxiLiteWriteMasterArray(NUM_AXIL_MASTERS_C-1 downto 0);
     signal axilWriteSlaves  : AxiLiteWriteSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0) := (others => AXI_LITE_WRITE_SLAVE_EMPTY_DECERR_C);
-
-    signal axisMasters : AxiStreamMasterArray(NUM_AXIS_MASTERS_C-1 downto 0);
-    signal axisSlaves  : AxiStreamSlaveArray(NUM_AXIS_MASTERS_C-1 downto 0);
 
 begin
 
@@ -159,94 +144,41 @@ begin
     -- Or the internal software trigger and external trigger
     readoutTrigAsync <= extTrig or axilR.softTrig;
 
-    -- TODO: Things likely to break if a buffer swap happens during an axi stream
-    -- transmission as we reset the buffer as part of the swap. It seem like the
-    -- axi stream transmission will still complete (as it ends when the number of
-    -- words fitting the buffer is transmitted) but the transmitted buffer data
-    -- will be corrupt as the read address jumps (as it references the firstAddr
-    -- of the buffer).
-    -- The best way out is probably to implement a non-ring buffer that can be 
-    -- read out over axi stream (i.e. every readout starts at address 0) OR make
-    -- a PR to upstream surf to add an option for such a readout mode?
-    -- Actually, the latter is probably very easy as firstAddr just would have 
-    -- to be replaced with 0 (AxiStreamRingBuffer.vhd, line 566).
-    -- Also: Only as many words as indicated by bufferLength (dynamic!) are read 
-    -- out. So perhaps we also want an option to force bufferLength to equal RAM
-    -- size as well? Otherwise we might have a hard time if the header size 
-    -- is no longer determenistic?
-
-    -- Make buffer selection and trigger mutually exclusive
-    buffValid(0) <= buffSel and writeEn;
-    buffValid(1) <= not buffSel and writeEn;
-    -- Read out the buffer that IS NOT currently used for writing!
-    buffTrg(0)   <= not buffSel and readoutTrigSync;
-    buffTrg(1)   <= buffSel and readoutTrigSync;
-    -- Reset always the buffer that IS currently selected for writing!
-    -- This does not actually zero out the buffer so if a transmission has less
-    -- data than the buffer size and the transmission lengths vary one must keep
-    -- track of the number of received bytes! TODO?
-    buffRst(0)   <= buffSel and receiveDone;
-    buffRst(1)   <= not buffSel and receiveDone;
-
-    assert SD_BUFF_LEN = 2**SD_BUFF_ADDR_WIDTH report "Buffer 2**SD_BUFF_ADDR_WIDTH must equal SD_BUFF_LEN" severity failure;
-
-    -- Those do not have to be ring buffers but the surf ring buffers come with
-    -- axi stream readout which is convenient here.
-    GEN_VEC : for i in 1 downto 0 generate
-        U_AxiStreamRingBuffer : entity surf.AxiStreamRingBuffer
-            generic map (
-                TPD_G               => TPD_G,
-                SYNTH_MODE_G        => "xpm",
-                MEMORY_TYPE_G       => "block",
-                COMMON_CLK_G        => false,
-                DATA_BYTES_G        => 1,   -- 8 bit per transmission
-                RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
-                -- AXI Stream Configurations
-                FIFO_MEMORY_TYPE_G  => "block",
-                FIFO_ADDR_WIDTH_G   => 9,   -- TODO: Adjust?
-                GEN_SYNC_FIFO_G     => false,
-                AXI_STREAM_CONFIG_G => DMA_AXIS_CONFIG_C)
-            port map (
-                -- Data to store in ring buffer (dataClk domain)
-                dataClk         => clk,
-                dataValid       => buffValid(i),
-                dataValue       => sdData,  -- Data line shared between buffers, use write enable to only capture valid data
-                dataRst         => buffRst(i),  -- Use to reset ring buffer pointers
-                -- Trigger for readout over axis
-                extTrig         => buffTrg(i),
-                -- AXI-Lite interface (axilClk domain)
-                axilClk         => axilClk,
-                axilRst         => axilRst,
-                axilReadMaster  => axilReadMasters(RING_INDEX_START_C + i),
-                axilReadSlave   => axilReadSlaves(RING_INDEX_START_C + i),
-                axilWriteMaster => axilWriteMasters(RING_INDEX_START_C + i),
-                axilWriteSlave  => axilWriteSlaves(RING_INDEX_START_C + i),
-                -- AXI-Stream Interface (axisClk domain)
-                axisClk         => axisClk,
-                axisRst         => axisRst,
-                axisMaster      => axisMasters(i),
-                axisSlave       => axisSlaves(i));
-    end generate GEN_VEC;
-
-    U_Mux : entity surf.AxiStreamMux
-        generic map (
-            TPD_G          => TPD_G,
-            NUM_SLAVES_G   => NUM_AXIS_MASTERS_C,
-            MODE_G         => "ROUTED",
-            TDEST_ROUTES_G => (
-                0          => TDEST_ROUTE_G,
-                1          => TDEST_ROUTE_G),
-            PIPE_STAGES_G  => 1)
+    U_AxiStreamFrameBuffer : entity surf.AxiStreamFrameBuffer
+        generic map(
+            TPD_G               => TPD_G,
+            SYNTH_MODE_G        => SYNTH_MODE_G,
+            MEMORY_TYPE_G       => "block",
+            COMMON_CLK_G        => false,
+            DATA_BYTES_G        => 1,   -- 8 bit per transmission
+            RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
+            SAFE_BUFFS_G        => true,
+            -- AXI Stream Configurations
+            FIFO_MEMORY_TYPE_G  => "block",
+            FIFO_ADDR_WIDTH_G   => 9,   -- TODO: Adjust?
+            GEN_SYNC_FIFO_G     => false,
+            AXI_STREAM_CONFIG_G => DMA_AXIS_CONFIG_C
+            )
         port map (
-            -- Clock and reset
-            axisClk      => axisClk,
-            axisRst      => axisRst,
-            -- Slaves
-            sAxisMasters => axisMasters,
-            sAxisSlaves  => axisSlaves,
-            -- Master
-            mAxisMaster  => axisMaster,
-            mAxisSlave   => axisSlave);
+            -- Data to store in ring buffer (dataClk domain)
+            dataClk         => clk,
+            dataValid       => dataR.writeEn,
+            dataValue       => dataR.sdData,  -- Data line shared between buffers, use write enable to only capture valid data
+            dataFrameTxLast => dataR.recDone,
+            -- Trigger for readout over axis
+            getFrameTrig    => readoutTrigSync,
+            -- AXI-Lite interface (axilClk domain)
+            axilClk         => axilClk,
+            axilRst         => axilRst,
+            axilReadMaster  => axilReadMasters(FB_INDEX_C),
+            axilReadSlave   => axilReadSlaves(FB_INDEX_C),
+            axilWriteMaster => axilWriteMasters(FB_INDEX_C),
+            axilWriteSlave  => axilWriteSlaves(FB_INDEX_C),
+            -- AXI-Stream Interface (axisClk domain)
+            axisClk         => axisClk,
+            axisRst         => axisRst,
+            axisMaster      => axisMaster,
+            axisSlave       => axisSlave);
 
     U_SoftTrigSync : entity surf.SynchronizerOneShot
         generic map(
@@ -265,12 +197,11 @@ begin
         v := dataR;
 
         -- Reset strobes
-        v.recDoneStrb := '0';
+        v.recDone := '0';
+        v.writeEn := '0';               -- Default to no write
 
         if dataValid = '1' then         -- Do nothing if data invalid
             dataVar := data;
-
-            v.writeEn := '0';           -- Default to no write
 
             -- State machine only required if SD turned on.
             -- SD_EN might as well be a register but if so one must ensure
@@ -287,7 +218,7 @@ begin
                         -- do not know if the current data is SD or DB.
                         if dataK = '1' and data = SD_START_K then
                             -- It appears that the transmission following the
-                            -- align K is always SD (TODO: Check!)
+                            -- align K is always SD
                             v.isSd      := '1';
                             -- Should always be 1 after initial start K
                             -- received. Consider setting back to 0 if e.g.
@@ -295,26 +226,23 @@ begin
                             v.alignDone := '1';
 
                             -- Preset counter
-                            v.recBytesCnt := x"07FF";  -- slv(to_unsigned(SD_BUFF_LEN, v.recBytesCnt'length));
+                            v.recBytesCnt := slv(to_unsigned(SD_BUFF_LEN, v.recBytesCnt'length));
                             -- Move to receive state
                             v.state       := RECEIVE_S;
                         end if;
                     when RECEIVE_S =>
                         -- Check for transmission end K or buffer full
                         if (dataK = '1' and data = SD_END_K) or (dataR.recBytesCnt = 0) then
-                            -- Toggle selected buffer. Also toggles which
-                            -- buffer is triggered for readout!
-                            v.buffSel     := not dataR.buffSel;
                             -- Strobe receive done which also resets the buffer
                             -- that is queued for next recording
-                            v.recDoneStrb := '1';
+                            v.recDone := '1';
                             -- Move back to idle to wait for next start K
-                            v.state       := IDLE_S;
+                            v.state   := IDLE_S;
                         -- Otherwise, if data is SD, record it into buffer
                         elsif v.isSd = '1' then
                             v.recBytesCnt := dataR.recBytesCnt - 1;  -- Decrement counter
-                            v.sdData      := data;     -- Set data
-                            v.writeEn     := '1';  -- Enable write to buffer
+                            v.sdData      := data;  -- Set data
+                            v.writeEn     := '1';   -- Enable write to buffer
                         end if;
                 end case;
 
@@ -331,16 +259,10 @@ begin
                 -- to care about alignement or states
                 v.distrBus := data;
             end if;
-
         end if;
 
         -- Outputs
-        distrBus    <= dataR.distrBus;
-        buffSel     <= dataR.buffSel;
-        receiveDone <= dataR.recDoneStrb;
-        -- Write enable and data must be synchronous so include both in register
-        writeEn     <= dataR.writeEn;
-        sdData      <= dataR.sdData;
+        distrBus <= dataR.distrBus;
 
         -- Register the variable for next clock cycle
         dataRin <= v;

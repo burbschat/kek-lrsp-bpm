@@ -2,6 +2,11 @@
 surf.files = [
     "./submodules/surf/**/*.vhd"
 ]
+# Must exclude build dir as vhdl files are mirrored to this directory when
+# running GHDL (including cocotb) simulations for surf.
+surf.exclude= [
+    "./submodules/surf/build/**/*.vhd"
+]
 
 axi_soc_ultra_plus_core.files = [
     "./submodules/axi-soc-ultra-plus-core/shared/rtl/*.vhd",

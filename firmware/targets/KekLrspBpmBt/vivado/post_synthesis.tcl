@@ -129,15 +129,16 @@ ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataK*}
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/clk*}
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/rst*}
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataValid*}
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/writeEn*}
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffSel*}
 
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffTrg*}
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/buffValid*}
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/readoutTrigSync*}
 
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/axis*}
 
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/dataR*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axilR*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/txSlave*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axisMaster*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axisSlave*}
 
 
 # # Before synchronizer

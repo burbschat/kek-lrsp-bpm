@@ -27,13 +27,12 @@ class EvrDbSd(pr.Device):
     ):
         super().__init__(*args, **kwargs)
 
-        for i in range(2):
-            self.add(axi.AxiStreamRingBuffer(
-                name   = f'DataBuff[{i}]',
-                offset = i * 0x1000,
-            ))
+        self.add(axi.AxiStreamFrameBuffer(
+            name   = f'FrameBuff',
+            offset = 0x0,
+        ))
 
-        self._reg_base = 2 * 0x1000
+        self._reg_base = 1 * 0x1000
 
         self.add(pr.RemoteVariable(
             name         = 'stateReg',

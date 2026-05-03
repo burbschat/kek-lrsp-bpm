@@ -22,9 +22,9 @@ use work.AppPkg.all;
 entity EvrDecoder is
     generic (
         TPD_G            : time    := 1 ns;
+        SYNTH_MODE_G     : string  := "inferred";
         N_TRGS_G         : integer := 16;  -- Number of mappable trigger outputs
-        AXIL_BASE_ADDR_G : slv(31 downto 0);
-        SD_TDEST_ROUTE_G : slv(7 downto 0)
+        AXIL_BASE_ADDR_G : slv(31 downto 0)
         );
     port (
         usrClk  : in sl;  -- user clock (rx data interface syncrhonous to this clock)
@@ -105,6 +105,10 @@ begin
     -- operation which does not have to be implemented here directly.
 
     U_TRGS : entity work.EvrTrgs
+        generic map(
+            TPD_G    => TPD_G,
+            N_TRGS_G => N_TRGS_G
+            )
         port map(
             clk       => usrClk,
             rst       => rst,
@@ -127,8 +131,9 @@ begin
 
     U_DBSD : entity work.EvrDbSd
         generic map(
-            AXIL_BASE_ADDR_G => AXIL_CONFIG_C(DBSD_INDEX_C).baseAddr,
-            TDEST_ROUTE_G    => SD_TDEST_ROUTE_G
+            TPD_G            => TPD_G,
+            SYNTH_MODE_G     => SYNTH_MODE_G,
+            AXIL_BASE_ADDR_G => AXIL_CONFIG_C(DBSD_INDEX_C).baseAddr
             )
         port map(
             -- Inputs

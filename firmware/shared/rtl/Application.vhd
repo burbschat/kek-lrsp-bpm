@@ -248,13 +248,9 @@ begin
    U_EvrDecoder : entity work.EvrDecoder
       generic map(
          TPD_G            => TPD_G,
+         SYNTH_MODE_G     => "xpm",
          N_TRGS_G         => EVR_N_TRGS_C,
-         AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr,
-         -- Set tdest but actually we don't care as here a batcher is used which
-         -- strips the tdest so we have to again add it after batching.
-         SD_TDEST_ROUTE_G => AXIS_RING_TDEST_C
-       -- For EVR metadata in separate stream for testing
-       -- SD_TDEST_ROUTE_G => x"12"
+         AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr
          )
       port map(
          -- Serial data input
