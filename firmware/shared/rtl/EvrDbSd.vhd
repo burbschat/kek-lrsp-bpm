@@ -184,7 +184,7 @@ begin
         generic map(
             TPD_G => TPD_G)
         port map(
-            clk     => clk,
+            clk     => clk, -- TODO: This should be synced to axil clock as the trigger is on the axil clock domain???
             rst     => rst,
             dataIn  => readoutTrigAsync,
             dataOut => readoutTrigSync);

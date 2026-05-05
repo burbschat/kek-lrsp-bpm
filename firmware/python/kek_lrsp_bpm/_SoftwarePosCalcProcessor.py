@@ -872,21 +872,30 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             # pl = pl.view(np.uint8)  # Should already be uint8...
             btr_supfr_hdr_bytes = 2  # 2 byte super frame header
             btr_subfrm_tail_bytes = 7  # 7 byte sub frame tail
+            # Superframe header from batcher
             batcher_header = pl[0:btr_supfr_hdr_bytes]
             # nr. of samples in buffer * 4 channels * 2 byte per sample = offset in bytes
             dat_bytes = 2 * self._bufferDepth * 4
             dat = pl[btr_supfr_hdr_bytes : btr_supfr_hdr_bytes + dat_bytes].view(np.int16)
-            # Metadata is big endian as it originates from some PowerPC VNC device
-            meta = pl[btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes : -btr_subfrm_tail_bytes].view(">u2")
-            # Always pad to fixed size (2048 byte). Also for some reason the
-            # first entry is always a 1 which however apparently is not part of
-            # the buffer (other devices seem to ignore it?).
-            # TODO: 2048 is max size but probably 1024 suffices in practice?
+            # Get the metadata payload bytes
+            meta = pl[btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes : -btr_subfrm_tail_bytes]
+            # Subframe tails from batcher
+            data_tail = pl[btr_supfr_hdr_bytes + dat_bytes : btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes]
+            meta_tail = pl[-btr_supfr_hdr_bytes : ]
+            # For some reason the first byte is always 0x01. Probably part of
+            # the protocol but not documented. The byte is there in the serial
+            # data stream (as verified with ILA). Apparently not part of the 
+            # payload so ignore this byte.
             meta = meta[1:]
-            meta_padded = np.pad(meta, (0, max(0, 2048 - meta.size)))
+            # Always pad to fixed size (2048 byte). Transmissions may terminate
+            # early so the received buffer can be shorter.
+            meta = np.pad(meta, (0, max(0, 2048 - meta.size)))
+            # Metadata is uint16 but big endian as it originates from some
+            # PowerPC VNC device. Decode accordingly.
+            meta = meta.view(">u2")
             # np.set_printoptions(threshold=sys.maxsize)
             # print("Batcher header:", batcher_header)
-            # print("Metadata:", meta_padded)
+            # print("Metadata:", meta)
 
             # Reshape the array into (4, N) format
             waveformData = dat.reshape(-1, 4).T  # Transpose to get (4, N) shape
@@ -1007,7 +1016,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     # some information in the metadata? That would be optimal.
 
                     # Write metadata buffer from last shot
-                    self.Metadata.set(meta_padded, write=True)
+                    self.Metadata.set(meta, write=True)
 
             # Set the flag
             self.NewDataReady.set(True)
