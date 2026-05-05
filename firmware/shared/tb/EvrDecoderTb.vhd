@@ -16,25 +16,32 @@ entity EvrDecoderTb is end EvrDecoderTb;
 
 architecture testbed of EvrDecoderTb is
 
-    constant CLK_PERIOD_C : time := 10 ns;
-    constant TPD_C        : time := CLK_PERIOD_C/4;
+    constant DATA_CLK_PERIOD_C : time := 8.753501400560225 ns;  -- 1/114.24MHz
+    constant AXI_CLK_PERIOD_C  : time := 10.0 ns;               -- 1/114.24MHz
+    constant TPD_C             : time := 1 ns;
 
     constant AXIS_CONFIG_C : AxiStreamConfigType := ssiAxiStreamConfig(dataBytes => 2);
 
     type RegType is record
-        data         : slv(15 downto 0);
-        dataValid    : sl;
-        frameDone    : sl;
-        cnt          : slv(11 downto 0);
-        getFrameTrig : sl;
+        data          : slv(15 downto 0);
+        dataK         : slv(1 downto 0);
+        dataDbSd      : slv(7 downto 0);
+        dataDbSdK     : sl;
+        dataTrigs     : slv(7 downto 0);
+        dataTrigsK    : sl;
+        cnt           : slv(31 downto 0);
+        sdReadoutTrig : sl;
     end record;
 
     constant REG_INIT_C : RegType := (
-        data         => (others => '0'),
-        dataValid    => '0',
-        frameDone    => '0',
-        cnt          => (others => '0'),
-        getFrameTrig => '0');
+        data          => (others => '0'),
+        dataK         => (others => '0'),
+        dataDbSd      => (others => '0'),
+        dataDbSdK     => '0',
+        dataTrigs     => (others => '0'),
+        dataTrigsK    => '0',
+        cnt           => (others => '0'),
+        sdReadoutTrig => '0');
 
 
     constant NUM_AXIL_MASTERS_C : natural          := 1;
@@ -65,7 +72,7 @@ begin
     ---------------------------
     U_DataClkRst : entity surf.ClkRst
         generic map (
-            CLK_PERIOD_G      => CLK_PERIOD_C,
+            CLK_PERIOD_G      => DATA_CLK_PERIOD_C,
             RST_START_DELAY_G => 0 ns,  -- Wait this long into simulation before asserting reset
             RST_HOLD_TIME_G   => 1000 ns)  -- Hold reset for this long
         port map (
@@ -76,9 +83,9 @@ begin
 
     U_AxiClkRst : entity surf.ClkRst
         generic map (
-            CLK_PERIOD_G      => CLK_PERIOD_C/3.1415,  -- Make clocks more or less async
+            CLK_PERIOD_G      => AXI_CLK_PERIOD_C,
             RST_START_DELAY_G => 0 ns,  -- Wait this long into simulation before asserting reset
-            RST_HOLD_TIME_G   => 1000 ns)  -- Hold reset for this long
+            RST_HOLD_TIME_G   => 1000 ns)           -- Hold reset for this long
         port map (
             clkP => axiClk,
             clkN => open,
@@ -97,9 +104,9 @@ begin
         port map(
             -- Serial data input
             usrClk  => dataClk,
-            data    => (others => '1'),
-            dataK   => (others => '0'),
-            dispErr => (others => '0'),
+            data    => r.data,
+            dataK   => r.dataK,
+            dispErr => (others => '0'),  -- No errors
             decErr  => (others => '0'),
             rst     => dataRst,  -- Keep in reset until data valid (forces reset while GTY resetting)
 
@@ -107,7 +114,7 @@ begin
             trgs => open,
 
             -- Trigger to readout most recent received shared data via AXI stream
-            sdReadoutTrig => '0',
+            sdReadoutTrig => r.sdReadoutTrig,
 
             -- AXI-Stream Interface (axisClk domain)
             axisClk    => axiClk,
@@ -133,47 +140,72 @@ begin
         v := r;
 
         -- Reset the strobes
-        v.frameDone    := '0';
-        v.getFrameTrig := '0';
+        v.sdReadoutTrig := '0';
 
         -- Check if increment the counter
-        if (r.cnt /= x"FFF") then
+        if (r.cnt /= x"0000FFFF") then
 
             -- Increment the counter
             v.cnt := r.cnt + 1;
 
             -- Generate data
-            if r.cnt < 2048 then
-                v.data      := r.data + 1;
-                v.dataValid := '1';
+            if r.cnt = 512 - 1 then
+                -- Transmission start marker
+                v.dataDbSd  := x"1C";
+                v.dataDbSdK := '1';
+            elsif (r.cnt >= 512) and (r.cnt < 1024) then
+                if r.cnt(0) = '1' then
+                    v.dataDbSd := r.cnt(7 downto 0);  -- Lower 8 bits of counter
+                else
+                    v.dataDbSd := (others => '1');    -- Set DB to all ones
+                end if;
+                v.dataDbSdK := '0';
+            elsif r.cnt = 1024 then
+                -- Transmission end marker
+                v.dataDbSd  := x"3C";
+                v.dataDbSdK := '1';
             else
-                v.data      := (others => '0');
-                v.dataValid := '0';
+                v.dataDbSd  := (others => '0');
+                v.dataDbSdK := '0';
             end if;
 
-            -- Frame done issued half way through, to check continous frame
-            -- recording and done flag functionality. Data will go on for
-            -- another buffer length to allow for check of the buffer full
-            -- frame end condition.
-            if (r.cnt = 1023) then
-                -- Set the flag
-                v.frameDone := '1';
+            -- Compose complete data vector
+            v.data  := v.dataDbSd & v.dataTrigs;
+            v.dataK := v.dataDbSdK & v.dataTrigsK;
+
+            -- Request frame readout
+            if (r.cnt = 1024 + 512) then
+                v.sdReadoutTrig := '1';
             end if;
 
-            -- Check for the readout trigger event
-            if (r.cnt = 1023) then
-                -- Set the flag
-                v.getFrameTrig := '1';
+            if (r.cnt = 2048 * 2 + 113) then
+                v.sdReadoutTrig := '1';
             end if;
 
-        end if;
+            if (r.cnt = 2048 * 3 + 11) then
+                v.sdReadoutTrig := '1';
+            end if;
 
-        -- Start hammering the trigger line to see if the module reacts
-        -- correctly and starts next readout immediately after last one
-        -- completed.
-        if (r.cnt > 1024 + 512) then
-            -- Set the flag
-            v.getFrameTrig := '1';
+            if (r.cnt = 2048 * 4 + 24) then
+                v.sdReadoutTrig := '1';
+            end if;
+
+            if (r.cnt = 2048 * 6 + 1244) then
+                v.sdReadoutTrig := '1';
+            end if;
+
+            if (r.cnt = 2048 * 7 + 1) then
+                v.sdReadoutTrig := '1';
+            end if;
+
+            if (r.cnt = 2048 * 8 + 222) then
+                v.sdReadoutTrig := '1';
+            end if;
+
+            if (r.cnt = 2048 * 9 + 1024) then
+                v.sdReadoutTrig := '1';
+            end if;
+
         end if;
 
         -- Synchronous Reset
