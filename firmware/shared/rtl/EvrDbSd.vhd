@@ -166,7 +166,7 @@ begin
             dataValue       => dataR.sdData,  -- Data line shared between buffers, use write enable to only capture valid data
             dataFrameTxLast => dataR.recDone,
             -- Trigger for readout over axis
-            getFrameTrig    => readoutTrigSync,
+            dataRdTrig      => readoutTrigSync,
             -- AXI-Lite interface (axilClk domain)
             axilClk         => axilClk,
             axilRst         => axilRst,
@@ -174,6 +174,7 @@ begin
             axilReadSlave   => axilReadSlaves(FB_INDEX_C),
             axilWriteMaster => axilWriteMasters(FB_INDEX_C),
             axilWriteSlave  => axilWriteSlaves(FB_INDEX_C),
+            axilRdTrig      => '0', -- Optional trigger signal synchronous to axilClk
             -- AXI-Stream Interface (axisClk domain)
             axisClk         => axisClk,
             axisRst         => axisRst,
@@ -184,7 +185,7 @@ begin
         generic map(
             TPD_G => TPD_G)
         port map(
-            clk     => clk, -- TODO: This should be synced to axil clock as the trigger is on the axil clock domain???
+            clk     => clk,
             rst     => rst,
             dataIn  => readoutTrigAsync,
             dataOut => readoutTrigSync);
