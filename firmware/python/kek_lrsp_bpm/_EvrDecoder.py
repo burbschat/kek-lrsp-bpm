@@ -4,6 +4,7 @@ import surf.axi as axi
 class EvrDecoder(pr.Device):
     def __init__(
         self,
+        n_trgs=16,  # Must match N_TRGS_G set for decoder in firmware!
         *args,
         **kwargs,
     ):
@@ -12,6 +13,7 @@ class EvrDecoder(pr.Device):
         # Must this be rfsoc.EvrTrgs?
         self.add(EvrTrgs(
             offset     = 0x0000_0000,
+            n_trgs     = n_trgs,
         ))
 
         self.add(EvrDbSd(

@@ -115,7 +115,7 @@ architecture mapping of Application is
 
    signal ringBufTrig : sl;
 
-   constant EVR_N_TRGS_C : integer := 16;
+   constant EVR_N_TRGS_C : integer := 4;
    signal evrTrgs        : slv(EVR_N_TRGS_C - 1 downto 0);
 
 begin

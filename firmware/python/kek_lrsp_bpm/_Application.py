@@ -76,6 +76,7 @@ class Application(pr.Device):
 
         self.add(rfsoc.EvrDecoder(
             offset     = 0x0400_0000,
+            n_trgs     = 4,
         ))
 
     def startupInit(self):
