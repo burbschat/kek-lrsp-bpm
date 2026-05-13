@@ -921,6 +921,10 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 # This is the uncalibrated 'charge', only useful for qualitative monitoring!
                 charge = self._computeCharge(sums)
 
+                # TODO: Do something smarter than charge threshold. Also decide
+                # if we want to read out only if charge was sufficient on a per
+                # BPM basis or per shot basis, meaning read all if one had
+                # sufficient charge or read each only if charge sufficient.
                 charge_threshold = self.ChargeThreshold[i].get()
                 if charge >= charge_threshold:
                     polyEn = self.polyEn.get()
@@ -1002,21 +1006,21 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     empty_shots_since_last_current = self.EmptyShotsSinceLast[i].get()
                     self.EmptyShotsSinceLast[i].set(empty_shots_since_last_current + 1)  # Increment counter
 
-                # Update only when either bunch had sufficient charge
-                # This is slow: TODO: Add a mechanism to update on only every
-                # nth waveform or maybe once per second.
-                # Or maybe just put it in a separate stream with dropping fifo?
-                # In which case however the logic for only update on non empty
-                # won't work. So better keep it here.
-                if atLeastOneWindowUpdated:
-                    for j in range(4):
-                        self.WaveformData[j].set(waveformData[j, :], write=True)
+            # Update only when either bunch had sufficient charge
+            # This is slow: TODO: Add a mechanism to update on only every
+            # nth waveform or maybe once per second.
+            # Or maybe just put it in a separate stream with dropping fifo?
+            # In which case however the logic for only update on non empty
+            # won't work. So better keep it here.
+            if atLeastOneWindowUpdated:
+                for j in range(4):
+                    self.WaveformData[j].set(waveformData[j, :], write=True)
 
-                    # TODO: Can we replace charge threshold with a check of
-                    # some information in the metadata? That would be optimal.
+                # TODO: Can we replace charge threshold with a check of
+                # some information in the metadata? That would be optimal.
 
-                    # Write metadata buffer from last shot
-                    self.Metadata.set(meta, write=True)
+                # Write metadata buffer from last shot
+                self.Metadata.set(meta, write=True)
 
             # Set the flag
             self.NewDataReady.set(True)
