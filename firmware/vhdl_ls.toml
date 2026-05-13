@@ -23,6 +23,7 @@ unisim.files = [
     '$XILINX_VIVADO/data/vhdl/src/unisims/unisim_VCOMP.vhd',
     '$XILINX_VIVADO/data/vhdl/src/unisims/primitive/*.vhd*',
 ]
+unisim.is_third_party = true
 
 [lint]
 unnecessary_work_library = false # Disable linting for the 'library work;' statement
