@@ -64,7 +64,10 @@ architecture rtl of EvrTrgs is
         trgsIgnoreIfK       => '1',     -- Ignore if comma by default
         trgsIgnoreIfInvalid => '1',     -- Ignore if error by default
 
-        trgsEventMap => (others => (others => '0')),
+        -- Set to all ones instead zeros as the default value for no event is 0x00, which
+        -- however is not ignored here. This could be deliberately ignored but perhaps
+        -- someone wants to trigger on every receive cycle? Just leave it for now.
+        trgsEventMap => (others => (others => '1')),
 
         trgCountsResets => (others => '0'),
 

@@ -116,6 +116,7 @@ class EvrTrgs(pr.Device):
                 bitOffset    = (i * 8) % 32,
                 bitSize      = 8,
                 mode         = 'RW',
+                value        = 0xFF,  # 0xFF should be unused event code (at KEK)
                 hidden       = False,
             ))
 
