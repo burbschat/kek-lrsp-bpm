@@ -38,7 +38,7 @@ entity Application is
       dmaIbMaster     : out AxiStreamMasterType;
       dmaIbSlave      : in  AxiStreamSlaveType;
       -- Trigger Inputs
-      trigsIn         :     slv(1 downto 0);
+      trigsIn         : in  slv(1 downto 0);
       -- ADC/DAC Interface (dspClk domain)
       dspClk          : in  sl;
       dspRst          : in  sl;
