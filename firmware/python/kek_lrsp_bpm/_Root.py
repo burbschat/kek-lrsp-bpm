@@ -258,6 +258,8 @@ class Root(pr.Root):
                         self.pvMap[f"{poscalcPath}.XposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"XMSK{0xf^(0b1<<j):04b}_{i+1}"
                         self.pvMap[f"{poscalcPath}.YposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"YMSK{0xf^(0b1<<j):04b}_{i+1}"
 
+            self.pvMap[f"{poscalcPath}.ResultsVector"] = "RESWAV"
+
             # Instantiate the protocol (self.add call not required for this protocol!)
             self.epicsV7 = pyrogue.protocols.epicsV7.EpicsPvServer(
                 base=self.epicsPrefix,
