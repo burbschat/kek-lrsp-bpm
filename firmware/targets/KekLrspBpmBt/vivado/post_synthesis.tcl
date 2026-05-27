@@ -122,7 +122,7 @@ ConfigProbe ${ilaName} {U_App/axilRst}
 # New EVR stuff
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_TRGS/trgs*}
 ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/trigsIn*}
-ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/ringBufTrigOut*}
+ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/trigOut*}
 
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/data*}
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataK*}
