@@ -286,7 +286,8 @@ begin
 
    -- ADC trigger and readout control
    U_ReadoutCtrl : entity work.ReadoutCtrl
-      generic map(TPD_G => TPD_G)
+      generic map(TPD_G       => TPD_G,
+                  NUM_TRIGS_G => 3)
       port map(
          -- Trigger Ports
          trigsIn         => evrTrgs(0) & trigsIn,
