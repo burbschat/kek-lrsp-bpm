@@ -290,13 +290,10 @@ begin
       port map(
          -- Trigger Ports
          trigsIn         => evrTrgs(0) & trigsIn,
-         ringBufTrigOut  => ringBufTrig,
+         trigOut         => ringBufTrig,
          -- DSP Interface
          dspClk          => dspClk,
          dspRst          => dspRst,
-         -- No way to use those for now. Could also use delays directly in RFDC?
-         -- fineDelay       => '0',
-         -- coarseDelay     => '0',
          -- AXI-Lite Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,

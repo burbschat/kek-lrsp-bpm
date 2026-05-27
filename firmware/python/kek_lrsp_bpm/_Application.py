@@ -69,8 +69,11 @@ class Application(pr.Device):
 
         self.add(rfsoc.ReadoutCtrl(
             offset      = 0x0300_0000,
-            sampleRate  = sampleRate,
-            SSR         = ssr,
+            trigSourcesEnum = {
+                0x0: 'irigTrig',
+                0x1: 'irigComp',
+                0x2: 'evr',
+            },
             expand      = True,
         ))
 

@@ -7,21 +7,17 @@ library surf;
 use surf.StdRtlPkg.all;
 use surf.AxiLitePkg.all;
 
-library work;
-use work.AppPkg.all;
-
 entity ReadoutCtrl is
     generic (
-        TPD_G : time := 1 ns);
+        TPD_G       : time                   := 1 ns;
+        NUM_TRIGS_G : positive range 1 to 32 := 1);
     port (
         -- Trigger Ports
-        trigsIn         : in  slv(2 downto 0);  -- Multiple trigger sources, select one using trigInSelIdx
-        ringBufTrigOut  : out sl;       -- To ring buffer
+        trigsIn         : in  slv(NUM_TRIGS_G-1 downto 0);  -- Multiple trigger sources, select one using trigInSelIdx
+        trigOut         : out sl;
         -- DSP Interface
         dspClk          : in  sl;
         dspRst          : in  sl;
-        fineDelay       : out Slv4Array(3 downto 0);
-        coarseDelay     : out Slv4Array(3 downto 0);
         -- AXI-Lite Interface (axilClk domain)
         axilClk         : in  sl;
         axilRst         : in  sl;
@@ -41,52 +37,48 @@ architecture rtl of ReadoutCtrl is
 
     type RegType is record
         -- Trigger outputs
-        trigRingBufDly    : slv(23 downto 0);
-        trigRingBufDlyCnt : slv(23 downto 0);
-        trigRingBuf       : sl;
+        trigDly        : slv(23 downto 0);
+        trigDlyCnt     : slv(23 downto 0);
+        trig           : sl;
         -- Trigger controls
-        trigInArm         : sl;
-        setKeepArm        : sl;
-        deglitchCnt       : slv(11 downto 0);
-        deglitchLen       : slv(11 downto 0);
+        trigInArm      : sl;
+        setKeepArm     : sl;
+        deglitchCnt    : slv(11 downto 0);
+        deglitchLen    : slv(11 downto 0);
         -- Trigger input signals
-        trigInPolarity    : sl;
-        trigsIn           : slv(2 downto 0);  -- All possible trigger sources
-        trigInSel         : sl;               -- Actually used trigger source
-        trigInSelIdx      : slv(1 downto 0);
+        trigInPolarity : sl;
+        trigsIn        : slv(NUM_TRIGS_G-1 downto 0);  -- All possible trigger sources (allow up to 32 to fit AXI-Lite register)
+        trigInSel      : sl;            -- Actually used trigger source
+        trigInSelIdx   : slv(3 downto 0);  -- 32 triggers can be indexed with 4 bits
         -- Trigger control
-        softTrig          : sl;
-        fineDelay         : Slv4Array(3 downto 0);
-        coarseDelay       : Slv4Array(3 downto 0);
-        axilReadSlave     : AxiLiteReadSlaveType;
-        axilWriteSlave    : AxiLiteWriteSlaveType;
+        softTrig       : sl;
+        axilReadSlave  : AxiLiteReadSlaveType;
+        axilWriteSlave : AxiLiteWriteSlaveType;
         -- Trigger state
-        state             : StateType;
-        stateReg          : slv(7 downto 0);
+        state          : StateType;
+        stateReg       : slv(7 downto 0);
     end record RegType;
     constant REG_INIT_C : RegType := (
         -- Trigger outputs
-        trigRingBufDly    => (others => '0'),
-        trigRingBufDlyCnt => (others => '0'),
-        trigRingBuf       => '0',
+        trigDly        => (others => '0'),
+        trigDlyCnt     => (others => '0'),
+        trig           => '0',
         -- Trigger controls
-        trigInArm         => '0',
-        setKeepArm        => '0',
-        deglitchCnt       => (others => '0'),
-        deglitchLen       => x"800",
+        trigInArm      => '0',
+        setKeepArm     => '0',
+        deglitchCnt    => (others => '0'),
+        deglitchLen    => x"800",
         -- Trigger input signals
-        trigInPolarity    => '0',
-        trigsIn           => (others => '0'),
-        trigInSel         => '0',
-        trigInSelIdx      => (others => '0'),
+        trigInPolarity => '0',
+        trigsIn        => (others => '0'),
+        trigInSel      => '0',
+        trigInSelIdx   => (others => '0'),
         -- Trigger control
-        softTrig          => '0',
-        fineDelay         => (others => x"0"),
-        coarseDelay       => (others => x"0"),
-        axilReadSlave     => AXI_LITE_READ_SLAVE_INIT_C,
-        axilWriteSlave    => AXI_LITE_WRITE_SLAVE_INIT_C,
-        state             => IDLE_S,
-        stateReg          => (others => '0'));
+        softTrig       => '0',
+        axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
+        axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C,
+        state          => IDLE_S,
+        stateReg       => (others => '0'));
 
     signal r   : RegType := REG_INIT_C;
     signal rin : RegType;
@@ -127,9 +119,9 @@ begin
         v := r;
 
         -- Reset strobes
-        v.softTrig    := '0';
-        v.trigInArm   := '0';
-        v.trigRingBuf := '0';
+        v.softTrig  := '0';
+        v.trigInArm := '0';
+        v.trig      := '0';
 
         ----------------------------------------------------------------------
         --                AXI-Lite Register Logic
@@ -142,24 +134,20 @@ begin
         -- Map the registers
         -------------------------
 
+        axiSlaveRegisterR(axilEp, x"00", 0, toSlv(NUM_TRIGS_G, 32));
+
         axiSlaveRegister (axilEp, x"04", 0, v.softTrig);
 
-        -- Reserved: address: [0xC:0xF]
-        for i in 0 to 3 loop
-            axiSlaveRegister (axilEp, x"14", (8*i), v.fineDelay(i));
-            axiSlaveRegister (axilEp, x"18", (8*i), v.coarseDelay(i));
-        end loop;
+        axiSlaveRegister (axilEp, x"08", 0, v.trigInSelIdx);
+        axiSlaveRegister (axilEp, x"08", 4, v.trigInPolarity);
 
-        axiSlaveRegister (axilEp, x"20", 16, v.trigInSelIdx);
-        axiSlaveRegister (axilEp, x"20", 24, v.trigInPolarity);
-
-        axiSlaveRegisterR(axilEp, x"24", 0, r.trigsIn);
-        axiSlaveRegisterR(axilEp, x"24", 4, r.trigInSel);
+        axiSlaveRegisterR(axilEp, x"20", 0, r.trigsIn);
+        axiSlaveRegisterR(axilEp, x"24", 0, r.trigInSel);
 
         axiSlaveRegister (axilEp, x"28", 0, v.trigInArm);
         axiSlaveRegister (axilEp, x"28", 2, v.setKeepArm);
 
-        axiSlaveRegister (axilEp, x"2C", 0, v.trigRingBufDly);
+        axiSlaveRegister (axilEp, x"2C", 0, v.trigDly);
         axiSlaveRegister (axilEp, x"30", 0, v.deglitchLen);
 
         axiSlaveRegisterR(axilEp, x"34", 0, r.stateReg);
@@ -185,22 +173,22 @@ begin
                 end if;
                 -- Software trigger does not require arming
                 if (r.softTrig = '1') then
-                    v.trigRingBufDlyCnt := r.trigRingBufDly;  -- Preset the counter
-                    v.state             := DELAY_S;
+                    v.trigDlyCnt := r.trigDly;  -- Preset the counter
+                    v.state      := DELAY_S;
                 end if;
 
             when ARMD_S =>
                 -- Check for hardware trigger event or software trigger
                 if (r.trigInSel = '1') or (r.softTrig = '1') then
-                    v.trigRingBufDlyCnt := r.trigRingBufDly;  -- Preset the counter
-                    v.state             := DELAY_S;
+                    v.trigDlyCnt := r.trigDly;  -- Preset the counter
+                    v.state      := DELAY_S;
                 end if;
 
             when DELAY_S =>
                 -- Delay state waits for set delay before outputting trigger
-                if (r.trigRingBufDlyCnt = 0) then
+                if (r.trigDlyCnt = 0) then
                     -- Output the trigger
-                    v.trigRingBuf := '1';
+                    v.trig := '1';
                     -- Transition to next state
                     if (r.setKeepArm = '1') then
                         -- Initialize the deglitch counter
@@ -213,7 +201,7 @@ begin
                     end if;
                 else
                     -- Decrement the counter
-                    v.trigRingBufDlyCnt := r.trigRingBufDlyCnt - 1;
+                    v.trigDlyCnt := r.trigDlyCnt - 1;
                 end if;
 
             when DEGLITCH_S =>
@@ -238,10 +226,8 @@ begin
         -- Outputs
         axilDspWriteSlave <= r.axilWriteSlave;
         axilDspReadSlave  <= r.axilReadSlave;
-        fineDelay         <= r.fineDelay;
-        coarseDelay       <= r.coarseDelay;
-        -- Ring buffer trigger output
-        ringBufTrigOut    <= r.trigRingBuf;
+        -- Trigger output
+        trigOut           <= r.trig;
 
         -- Reset
         if (dspRst = '1') then
