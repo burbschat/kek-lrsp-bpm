@@ -110,6 +110,7 @@ if __name__ == "__main__":
         type     = str,
         required = True,  # Force explicit delcaration here!
         default  = "bt",
+        choices  = ["bt", "injp"],
         help     = "Sets the bpm type (bt or injp)",
     )
 
@@ -119,6 +120,14 @@ if __name__ == "__main__":
         required = False,
         default  = 9099,
         help     = "Zeromq server port (set to zero if you want it dynamic)",
+    )
+
+    parser.add_argument(
+        "--nWindows",
+        required = False,
+        type     = int,
+        default  = None,
+        help     = "Number of windows. Set to None to use the default value for given BPM type.",
     )
 
     # Get the arguments
@@ -137,6 +146,21 @@ if __name__ == "__main__":
 
     print(f"ADC sample rate is: {sampleRate/1e9} GHz")
 
+    # Set number of windows. For BT number of windows may depend on the readout
+    # location, so allow manual setting using command line argument.
+    nWindows = 1  # Default: 1 window
+    if args.bpmType == "injp":
+        nWindows = 2
+    elif args.bpmType == "bt":
+        nWindows = 5
+
+    # nWindows takes precedence if set.
+    if args.nWindows is not None:
+        nWindows = args.nWindows
+        print(f"Set {nWindows} according to passed command line argument.")
+    else:
+        print(f"Inferred {nWindows} windows for BPM type {args.bpmType}.")
+
     with kek_lrsp_bpm.Root(
         ip          = args.ip,
         bpmType     = args.bpmType,
@@ -146,7 +170,7 @@ if __name__ == "__main__":
         lmkConfig   = lmk_config_file,
         sampleRate  = sampleRate,
         zmqSrvPort  = args.zmqSrvPort,
-        nWindows    = 5,
+        nWindows    = nWindows,
         epicsPrefix = args.epicsPrefix,
     ) as root:
 
