@@ -15,10 +15,8 @@ class GuiTop(Display):
     def __init__(self, parent=None, args=[], macros=None):
         super(GuiTop, self).__init__(parent=parent, args=args, macros=None)
 
-        self.setStyleSheet(
-            "*[dirty='true']\
-                           {background-color: orange;}"
-        )
+        self.setStyleSheet("*[dirty='true']\
+                           {background-color: orange;}")
 
         self.channelColors = ["royalblue", "orange", "red", "limegreen"]
 
@@ -117,8 +115,16 @@ class GuiTop(Display):
             "Pos Scatter (Poly)",
         )
 
+        self.tab.addTab(
+            guiUser.UserControls(
+                parent=None,
+                init_channel=Channel,
+            ),
+            "User Controls",
+        )
+
         # Set the default Tab view
-        self.tab.setCurrentIndex(4)
+        self.tab.setCurrentIndex(7)
 
         # Resize the window
         self.resize(self.sizeX, self.sizeY)

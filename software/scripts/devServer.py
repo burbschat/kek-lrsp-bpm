@@ -157,7 +157,7 @@ if __name__ == "__main__":
     # nWindows takes precedence if set.
     if args.nWindows is not None:
         nWindows = args.nWindows
-        print(f"Set {nWindows} according to passed command line argument.")
+        print(f"Set {nWindows} windows according to passed command line argument value.")
     else:
         print(f"Inferred {nWindows} windows for BPM type {args.bpmType}.")
 

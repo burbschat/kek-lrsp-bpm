@@ -29,6 +29,11 @@ class EvrDbSd(pr.Device):
     ):
         super().__init__(*args, **kwargs)
 
+        self._statesEnum = {
+                0x0: 'IDLE',
+                0x1: 'RECEIVE_S',
+        }
+
         self.add(axi.AxiStreamFrameBuffer(
             name   = f'FrameBuff',
             offset = 0x0,
@@ -44,10 +49,16 @@ class EvrDbSd(pr.Device):
             mode         = 'RO',
             pollInterval = 1,
             # These are encoding dependent and thus may depend on implementation of enums in the firmware
-            enum        = {
-                0x0: 'IDLE',
-                0x1: 'RECEIVE_S',
-            },
+            enum         = self._statesEnum,
+        ))
+
+        # Publish state name as string for use in PyDM displays
+        self.add(pr.LinkVariable(
+            name         = "stateStr",
+            description  = "String indicating the current state",
+            mode         = "RO",
+            dependencies = [self.stateReg],
+            linkedGet    = lambda: self.getStateString(self.stateReg.value()),
         ))
 
         self.add(pr.RemoteVariable(
@@ -63,6 +74,13 @@ class EvrDbSd(pr.Device):
         def SendSwTrig():
             self.SwTrig.set(1)
 
+    def getStateString(self, stateIdx):
+        if stateIdx in self._statesEnum:
+            return self._statesEnum[stateIdx]
+        else:
+            return "UNDEFINED"
+
+
 
 class EvrTrgs(pr.Device):
     def __init__(
@@ -76,6 +94,15 @@ class EvrTrgs(pr.Device):
         self.n_trgs = n_trgs
 
         self.reset_vars = {}
+
+        self.add(pr.LocalVariable(
+            name         = "NumTrigs",
+            description  = "Number of Trigger Channels",
+            typeStr      = "Int32",
+            value        = self.n_trgs,
+            mode         = "RO",  # Fixed at initialization
+            hidden       = False,
+        ))
 
         self.add(pr.RemoteVariable(
             name         = 'ignoreIfK',
@@ -135,10 +162,13 @@ class EvrTrgs(pr.Device):
             # values from other bit offsets. I.e. if I write 1 to offset 0 then
             # 1 on the second write it actually writes 0b0011 instead of 0b0010
             # as I'd expect...
+            # bulkOpEn = False does not seem to help either (seems like this
+            # would be a related option)...
             reset_var = pr.RemoteVariable(
                 name         = f'trg{i}ResetReg',
                 description  = f'Reset trigger {i} counter',
                 offset       = 0x8 + ((self.n_trgs - 1) // 4) * 4 + 0x4 + (self.n_trgs - 1) * 4 + 0x4 + (i // 32) * 4,
+                # bulkOpEn     = False,
                 bitOffset    = i % 32,
                 bitSize      = 1,
                 mode         = 'WO',

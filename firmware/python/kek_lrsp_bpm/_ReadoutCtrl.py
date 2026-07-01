@@ -8,10 +8,19 @@ import pyrogue as pr
 # }
 
 class ReadoutCtrl(pr.Device):
-    def __init__(self, trigSourcesEnum, **kwargs):
+    def __init__(self, trigSourcesEnum, clkFreq, **kwargs):
         super().__init__(**kwargs)
 
         self._trigSourcesEnum = trigSourcesEnum
+        # These are encoding dependent and thus may depend on implementation of enums in the firmware
+        self._trigStatesEnum = {
+                0x0: 'IDLE',
+                0x1: 'ARMED',
+                0x2: 'DELAY',
+                0x3: 'DEGLITCH',
+            }
+
+        clkFreqMhz = clkFreq / 1e6
 
         self.add(pr.RemoteVariable(
             name         = 'NumTrigs',
@@ -99,18 +108,19 @@ class ReadoutCtrl(pr.Device):
             offset       = 0x2C,
             bitSize      = 24,
             mode         = "RW",
-            units        = '1/254.5MHz',
+            units        = f"+1 {1/clkFreqMhz:.3g} us",
         ))
 
         self.add(pr.LinkVariable(
             name         = "TrigRingBufDly",
             description  = "TrigRingBufDly in microseconds",
             mode         = "RW",
-            units        = "microsec",
-            disp         = '{:0.3f}',
+            units        = "us",
+            disp         = '{:0.5g}',
             dependencies = [self.TrigRingBufDlyRaw],
-            linkedGet    = lambda: (float(self.TrigRingBufDlyRaw.value()+1) * (1.0/254.5)),
-            linkedSet    = lambda value, write: self.TrigRingBufDlyRaw.set(int(value/(1.0/254.5))-1),
+            # Note that raw value 0 means one delay cycle due to the FSM implementation
+            linkedGet    = lambda: (float(self.TrigRingBufDlyRaw.value()+1) * (1.0/clkFreqMhz)),
+            linkedSet    = lambda value, write: self.TrigRingBufDlyRaw.set(int(value/(1.0/clkFreqMhz))-1),
         ))
 
         self.add(pr.RemoteVariable(
@@ -119,7 +129,21 @@ class ReadoutCtrl(pr.Device):
             offset       = 0x30,
             bitSize      = 12,
             mode         = "RW",
-            units        = '1/254.5MHz',
+            units        = f"{1/clkFreqMhz:.3g} us",
+        ))
+
+        self.add(pr.LinkVariable(
+            name         = "deglitchLen",
+            description  = "deglitchLen in microseconds",
+            mode         = "RW",
+            units        = "us",
+            disp         = '{:0.5g}',
+            dependencies = [self.deglitchLenRaw],
+            # Technically here also there may be one cycle more when entering
+            # the DEGLITCH state not when we already are in that state but we
+            # don't really care.
+            linkedGet    = lambda: (float(self.deglitchLenRaw.value()) * (1.0/clkFreqMhz)),
+            linkedSet    = lambda value, write: self.deglitchLenRaw.set(int(value/(1.0/clkFreqMhz))),
         ))
 
         self.add(pr.RemoteVariable(
@@ -129,11 +153,20 @@ class ReadoutCtrl(pr.Device):
             bitSize      = 8,
             mode         = 'RO',
             pollInterval = 1,
-            # These are encoding dependent and thus may depend on implementation of enums in the firmware
-            enum        = {
-                0x0: 'IDLE',
-                0x1: 'ARMED',
-                0x2: 'DELAY',
-                0x3: 'DEGLITCH',
-            },
+            enum        = self._trigStatesEnum,
         ))
+
+        # Publish state name as string for use in PyDM displays
+        self.add(pr.LinkVariable(
+            name         = "stateStr",
+            description  = "String indicating the current state",
+            mode         = "RO",
+            dependencies = [self.stateReg],
+            linkedGet    = lambda: self.getStateString(self.stateReg.value()),
+        ))
+
+    def getStateString(self, stateIdx):
+        if stateIdx in self._trigStatesEnum:
+            return self._trigStatesEnum[stateIdx]
+        else:
+            return "UNDEFINED"

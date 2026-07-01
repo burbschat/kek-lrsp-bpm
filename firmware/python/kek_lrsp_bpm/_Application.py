@@ -25,6 +25,9 @@ class Application(pr.Device):
         # Supersample rate (samples per dac clock)
         ssr = 16  # Must match SAMPLE_PER_CYCLE_G config
 
+        # Calculate dsp clock frequency from sample rate
+        dspClkFreq = sampleRate / 20  # in Hz
+
         self.add(rfsoc_utility.AppRingBuffer(
             name     = "AppRingBufferLive",
             offset   = 0x00_000000,
@@ -74,6 +77,7 @@ class Application(pr.Device):
                 0x1: 'irigComp',
                 0x2: 'evr',
             },
+            clkFreq     = dspClkFreq,
             expand      = True,
         ))
 
