@@ -31,7 +31,7 @@ class TriggerControls(PyDMFrame):
     def setup_ui(self):
         self.main_layout = QVBoxLayout()
         self.main_layout.setAlignment(QtCore.Qt.AlignTop)
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
         self.setLayout(self.main_layout)
 
@@ -121,7 +121,7 @@ class PoscalcWindowControls(PyDMFrame):
         # Construct main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setAlignment(QtCore.Qt.AlignTop)
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
@@ -156,7 +156,7 @@ class PoscalcWindowControls(PyDMFrame):
         for i in range(self.num_windows):
             # Use container so we can easily remove this later
             sub_layout = QHBoxLayout()
-            sub_layout.setContentsMargins(0, 0, 0, 0) 
+            sub_layout.setContentsMargins(0, 0, 0, 0)
             container = QWidget()
             container.setLayout(sub_layout)
 
@@ -207,7 +207,7 @@ class PoscalcControls(PyDMFrame):
         # Construct main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setAlignment(QtCore.Qt.AlignTop)
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
@@ -246,7 +246,7 @@ class AttenuationControls(PyDMFrame):
         # Construct main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setAlignment(QtCore.Qt.AlignTop)
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
         self.setLayout(self.main_layout)
 
@@ -261,7 +261,9 @@ class AttenuationControls(PyDMFrame):
             label = QLabel(text=f"Ch {ch}")
             channel_layout.addWidget(label)
 
-            spin_box = SpinboxWithLabel(text=f"Att. (dB)", init_channel=f"{self.path}.AttCh{ch}")
+            spin_box = SpinboxWithLabel(
+                text=f"Att. (dB)", init_channel=f"{self.path}.AttCh{ch}", val_max=27, val_min=0, precision=0
+            )
             spin_box.spinbox.setWriteOnPress(True)
             spin_box.spinbox.setShowStepExponent(False)
             spin_box.spinbox.setSingleStep(1)
@@ -327,8 +329,6 @@ class UserControls(PyDMFrame):
         # EVR stuff is kept separately for reusability as it is technically not
         # specific to this application.
         self.evr_controls = EvrControls(
-            init_channel=self.channel,
-            evr_gty_node="RFSoC.EvrGty",
-            evr_decoder_node="RFSoC.Application.EvrDecoder"
+            init_channel=self.channel, evr_gty_node="RFSoC.EvrGty", evr_decoder_node="RFSoC.Application.EvrDecoder"
         )
         self.lower_layout.addWidget(self.evr_controls)
