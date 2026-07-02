@@ -142,11 +142,18 @@ class EvrGtyControls(PyDMFrame):
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
+        self.qsfp_layout = QHBoxLayout()
+        self.main_layout.addLayout(self.qsfp_layout)
+
         self.qsfp_mod_prs_l = IndicatorWithLabel(text="QSFP Module Present", init_channel=f"{self.channel}.qsfpModPrsL")
         # Low means present so invert colors
         self.qsfp_mod_prs_l.indicator.setState0Color(QColor("LawnGreen"))
         self.qsfp_mod_prs_l.indicator.setState1Color(QColor("Red"))
-        self.main_layout.addWidget(self.qsfp_mod_prs_l)
+        self.qsfp_layout.addWidget(self.qsfp_mod_prs_l)
+
+        # Give reset_l a more intuitive name (activate)...
+        self.qsfp_mod_rst_l = IndicatorWithCheckbox(text="QSFP Module Activate", init_channel=f"{self.channel}.qsfpResetL")
+        self.qsfp_layout.addWidget(self.qsfp_mod_rst_l)
 
         self.tx_layout = QHBoxLayout()
         self.main_layout.addLayout(self.tx_layout)
