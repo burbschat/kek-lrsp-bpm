@@ -6,9 +6,12 @@ class EvrGty(pr.Device):
     def __init__(
         self,
         *args,
+        poll_interval=1,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+
+        self.poll_interval = poll_interval
 
         self.add(pr.RemoteVariable(
             name         = 'qsfpModSelL',
@@ -38,6 +41,7 @@ class EvrGty(pr.Device):
             bitOffset    = 2,
             bitSize      = 1,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -48,6 +52,7 @@ class EvrGty(pr.Device):
             bitOffset    = 3,
             bitSize      = 1,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -69,6 +74,7 @@ class EvrGty(pr.Device):
                 bitOffset    = 0,
                 bitSize      = 1,
                 mode         = 'RO',
+                pollInterval = self.poll_interval,
                 hidden       = False,
             ))
 
@@ -79,6 +85,7 @@ class EvrGty(pr.Device):
                 bitOffset    = 1,
                 bitSize      = 1,
                 mode         = 'RO',
+                pollInterval = self.poll_interval,
                 hidden       = False,
             ))
 
@@ -89,6 +96,7 @@ class EvrGty(pr.Device):
                 bitOffset    = 2,
                 bitSize      = 1,
                 mode         = 'RO',
+                pollInterval = self.poll_interval,
                 hidden       = False,
             ))
 
@@ -120,6 +128,7 @@ class EvrGty(pr.Device):
             bitOffset    = 0,
             bitSize      = 1,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -130,6 +139,7 @@ class EvrGty(pr.Device):
             bitOffset    = 1,
             bitSize      = 2,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -140,6 +150,7 @@ class EvrGty(pr.Device):
             bitOffset    = 3,
             bitSize      = 2,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -150,6 +161,7 @@ class EvrGty(pr.Device):
             bitOffset    = 5,
             bitSize      = 1,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -161,6 +173,7 @@ class EvrGty(pr.Device):
             bitOffset    = 6,
             bitSize      = 1,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
@@ -172,6 +185,7 @@ class EvrGty(pr.Device):
             bitOffset    = 7,
             bitSize      = 1,
             mode         = 'RO',
+            pollInterval = self.poll_interval,
             hidden       = False,
         ))
 
