@@ -153,42 +153,43 @@ class PoscalcWindowControls(PyDMFrame):
 
     def construct_dynamic_widgets(self):
         spin_box_step = 1
-        for i in range(self.num_windows):
-            # Use container so we can easily remove this later
-            sub_layout = QHBoxLayout()
-            sub_layout.setContentsMargins(0, 0, 0, 0)
-            container = QWidget()
-            container.setLayout(sub_layout)
+        for units in ["ns", "raw"]:
+            for i in range(self.num_windows):
+                # Use container so we can easily remove this later
+                sub_layout = QHBoxLayout()
+                sub_layout.setContentsMargins(0, 0, 0, 0)
+                container = QWidget()
+                container.setLayout(sub_layout)
 
-            window_label = QLabel(text=f"Wd. {i}")
-            sub_layout.addWidget(window_label)
+                window_label = QLabel(text=f"Wd. {i}")
+                sub_layout.addWidget(window_label)
 
-            window_start = SpinboxWithLabel(f"Start (ns)", init_channel=f"{self.channel}.WindowOpen[{i}]")
-            window_start.spinbox.setWriteOnPress(True)
-            window_start.spinbox.setShowStepExponent(False)
-            window_start.spinbox.setSingleStep(spin_box_step)
-            sub_layout.addWidget(window_start)
+                window_start = SpinboxWithLabel(f"Start ({units})", init_channel=f"{self.channel}.WindowOpen{'Raw' if units == 'raw' else ''}[{i}]")
+                window_start.spinbox.setWriteOnPress(True)
+                window_start.spinbox.setShowStepExponent(False)
+                window_start.spinbox.setSingleStep(spin_box_step)
+                sub_layout.addWidget(window_start)
 
-            window_end = SpinboxWithLabel(f"End (ns)", init_channel=f"{self.channel}.WindowClose[{i}]")
-            window_end.spinbox.setWriteOnPress(True)
-            window_end.spinbox.setShowStepExponent(False)
-            window_end.spinbox.setSingleStep(spin_box_step)
-            sub_layout.addWidget(window_end)
+                window_end = SpinboxWithLabel(f"End ({units})", init_channel=f"{self.channel}.WindowClose{'Raw' if units == 'raw' else ''}[{i}]")
+                window_end.spinbox.setWriteOnPress(True)
+                window_end.spinbox.setShowStepExponent(False)
+                window_end.spinbox.setSingleStep(spin_box_step)
+                sub_layout.addWidget(window_end)
 
-            # Only make sense when charge threshold used but we would like to
-            # get rid of that anyways so leave those widgets disabled for
-            # now...
-            # charge_threshold = SpinboxWithLabel(f"Wd. {i} C Thresh.", init_channel=f"{self.channel}.ChargeThreshold[{i}]")
-            # charge_threshold.spinbox.setWriteOnPress(True)
-            # charge_threshold.spinbox.setShowStepExponent(False)
-            # charge_threshold.spinbox.setSingleStep(1)
-            # sub_layout.addWidget(charge_threshold)
-            #
-            # empty_cnt = ValueWithLabel(f"Wd. {i} Empty Cnt.", init_channel=f"{self.channel}.EmptyShotsSinceLast[{i}]")
-            # sub_layout.addWidget(empty_cnt)
+                # Only make sense when charge threshold used but we would like to
+                # get rid of that anyways so leave those widgets disabled for
+                # now...
+                # charge_threshold = SpinboxWithLabel(f"Wd. {i} C Thresh.", init_channel=f"{self.channel}.ChargeThreshold[{i}]")
+                # charge_threshold.spinbox.setWriteOnPress(True)
+                # charge_threshold.spinbox.setShowStepExponent(False)
+                # charge_threshold.spinbox.setSingleStep(1)
+                # sub_layout.addWidget(charge_threshold)
+                #
+                # empty_cnt = ValueWithLabel(f"Wd. {i} Empty Cnt.", init_channel=f"{self.channel}.EmptyShotsSinceLast[{i}]")
+                # sub_layout.addWidget(empty_cnt)
 
-            self.dynamic_widgets.append(container)
-            self.main_layout.addWidget(self.dynamic_widgets[-1])
+                self.dynamic_widgets.append(container)
+                self.main_layout.addWidget(self.dynamic_widgets[-1])
 
     def redraw_ui(self):
         self.remove_dynamic_widgets()
@@ -228,6 +229,9 @@ class PoscalcControls(PyDMFrame):
         self.bytes_received_label = ValueWithLabel(
             text="Channel Corrections", init_channel=f"{self.path}.ChannelCorrections"
         )
+        self.main_layout.addWidget(self.bytes_received_label)
+
+        self.bytes_received_label = ValueWithLabel(text="Last Shot ID", init_channel=f"{self.path}.ShotID")
         self.main_layout.addWidget(self.bytes_received_label)
 
         self.window_controls = PoscalcWindowControls(init_channel=self.path)
