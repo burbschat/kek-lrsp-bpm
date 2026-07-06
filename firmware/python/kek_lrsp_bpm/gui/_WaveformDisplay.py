@@ -1,13 +1,11 @@
 from pydm.widgets.frame import PyDMFrame
 from pydm.widgets import PyDMWaveformPlot, PyDMPushButton
 
-from qtpy.QtCore import Qt
+from qtpy import QtCore
 from qtpy.QtGui import QColor
-from qtpy.QtWidgets import QVBoxLayout, QFormLayout, QGroupBox, QDoubleSpinBox
+from qtpy.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
 
 from pyrogue.pydm.data_plugins.rogue_plugin import nodeFromAddress
-
-import pyrogue as pr
 
 from pyqtgraph import TextItem
 from pyqtgraph import LinearRegionItem
@@ -19,6 +17,7 @@ import pyqtgraph as pg
 # Something keeps calling the receive value callbacks even if I try to
 # disconnect all PyDM channels.
 LABELS = False
+
 
 class ShadedRegionItem:
     def __init__(self, lowerBoundAddr, upperBoundAddr, regionLabel=None, **kwargs):
@@ -69,6 +68,7 @@ class ShadedRegionItem:
         if LABELS:
             self.label.setX((self.upper + self.lower) / 2)
 
+
 # Inherit from PyDMWaveformPlot adding a basic way for shading regions
 class PyDMWaveformPlotRanges(PyDMWaveformPlot):
     def __init__(self, *args, **kwargs):
@@ -101,13 +101,13 @@ class WaveformDisplay(PyDMFrame):
         init_channel=None,
         nodePath="SoftwarePositionCalculation",
         waveformNodeName="WaveformData",
-        background=[0, 0, 0, 255],
+        backgroundColor=[0, 0, 0, 255],
         minimumWidth=10,
         electrode_colors={"A": "royalblue", "B": "orange", "C": "red", "D": "limegreen"},
-        customRegionColors = None,
+        customRegionColors=None,
     ):
         PyDMFrame.__init__(self, parent, init_channel)
-        self.background = background
+        self.backgroundColor = backgroundColor
         self.electrode_colors = electrode_colors
         self._node = None
         self.nodePath = nodePath
@@ -185,20 +185,29 @@ class WaveformDisplay(PyDMFrame):
         self._node = nodeFromAddress(self.channel)
 
         vb = QVBoxLayout()
+        vb.setContentsMargins(0, 0, 0, 0)
+        vb.setSpacing(2)
         self.setLayout(vb)
 
         # -----------------------------------------------------------------------------
 
-        gb = QGroupBox("Shaded regions indicate regions used for signal integration")
-        vb.addWidget(gb)
+        controls_hb = QHBoxLayout()
+        controls_hb.setAlignment(QtCore.Qt.AlignLeft)
+        vb.addLayout(controls_hb)
 
-        fl = QFormLayout()
-        fl.setRowWrapPolicy(QFormLayout.DontWrapRows)
-        fl.setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        fl.setLabelAlignment(Qt.AlignRight)
-        gb.setLayout(fl)
+        controls_label = QLabel("Waveform Plot Controls: ")
+        controls_hb.addWidget(controls_label)
 
-        self.sigPlot = PyDMWaveformPlotRanges(background=self.background)
+        rstButton = PyDMPushButton(label="Full Scale")
+        rstButton.clicked.connect(self.resetScales)
+        controls_hb.addWidget(rstButton)
+
+        # -----------------------------------------------------------------------------
+
+        # regions_label = QLabel("Shaded regions indicate regions used for signal integration")
+        # vb.addWidget(regions_label)
+
+        self.sigPlot = PyDMWaveformPlotRanges(background=self.backgroundColor)
         # TODO call shaded regions here too?
 
         self.sigPlot.addAxis(
@@ -246,28 +255,13 @@ class WaveformDisplay(PyDMFrame):
             symbolSize=3,
             yAxisName="adc_counts",
         )
-        fl.addWidget(self.sigPlot)
+        vb.addWidget(self.sigPlot)
 
         self.sigPlot.setAutoRangeX(False)
         self.sigPlot.setMinXRange(0.0)
         self.sigPlot.setMaxXRange(300.0)
 
         self.sigPlot.setShowLegend(True)
-
-        # -----------------------------------------------------------------------------
-
-        gb = QGroupBox("Signal Plot Controls")
-        vb.addWidget(gb)
-
-        fl = QFormLayout()
-        fl.setRowWrapPolicy(QFormLayout.DontWrapRows)
-        fl.setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        fl.setLabelAlignment(Qt.AlignRight)
-        gb.setLayout(fl)
-
-        rstButton = PyDMPushButton(label="Full Scale")
-        rstButton.clicked.connect(self.resetScales)
-        fl.addWidget(rstButton)
 
         # -----------------------------------------------------------------------------
 

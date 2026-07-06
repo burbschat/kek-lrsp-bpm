@@ -34,7 +34,7 @@ def main():
 
     axi_soc_ultra_plus_core.rfsoc_utility.pydm.runPyDM(
         serverList=args.serverList,
-        ui=f"{top_level}/firmware/python/kek_lrsp_bpm/gui/GuiTop.py",
+        ui=f"{top_level}/firmware/python/kek_lrsp_bpm/gui/DevGuiTop.py",
         sizeX=800,
         sizeY=800,
     )

@@ -2,6 +2,8 @@ import os
 from pydm import Display
 from qtpy.QtWidgets import QVBoxLayout, QTabWidget
 
+import setupLibPaths # setup the runtime PYTHONPATH paths
+
 from pyrogue.pydm.widgets import DebugTree
 from pyrogue.pydm.widgets import SystemWindow
 
@@ -26,17 +28,18 @@ class GuiTop(Display):
         self.numAdcCh = None
         self.numDacCh = None
 
-        for a in args:
-            if "sizeX=" in a:
-                self.sizeX = int(a.split("=")[1])
-            if "sizeY=" in a:
-                self.sizeY = int(a.split("=")[1])
-            if "title=" in a:
-                self.title = a.split("=")[1]
-            if "numAdcCh=" in a:
-                self.numAdcCh = int(a.split("=")[1])
-            if "numDacCh=" in a:
-                self.numDacCh = int(a.split("=")[1])
+        if args is not None:
+            for a in args:
+                if "sizeX=" in a:
+                    self.sizeX = int(a.split("=")[1])
+                if "sizeY=" in a:
+                    self.sizeY = int(a.split("=")[1])
+                if "title=" in a:
+                    self.title = a.split("=")[1]
+                if "numAdcCh=" in a:
+                    self.numAdcCh = int(a.split("=")[1])
+                if "numDacCh=" in a:
+                    self.numDacCh = int(a.split("=")[1])
 
         if self.title is None:
             self.title = "Rogue Server: {}".format(os.getenv("ROGUE_SERVERS"))

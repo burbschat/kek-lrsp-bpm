@@ -5,7 +5,7 @@ from pydm import PyDMChannel
 
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QColor
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QDoubleSpinBox
+from qtpy.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QDoubleSpinBox
 
 from pyrogue.pydm.data_plugins.rogue_plugin import nodeFromAddress
 from pyrogue.pydm.widgets import PyRogueLineEdit
@@ -192,18 +192,14 @@ class BpmPosScatter(PyDMFrame):
         self._node = nodeFromAddress(self.channel)
 
         vb = QVBoxLayout()
+        vb.setContentsMargins(0, 0, 0, 0)
+        vb.setSpacing(2)
         self.setLayout(vb)
 
         # -----------------------------------------------------------------------------
 
-        gb = QGroupBox(f"Positions for {self.posVarType} computation")  # Can pass a string for this to display a title of the box
-        vb.addWidget(gb)
-
-        fl = QFormLayout()
-        fl.setRowWrapPolicy(QFormLayout.DontWrapRows)
-        fl.setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        fl.setLabelAlignment(Qt.AlignRight)
-        gb.setLayout(fl)
+        pos_var_type_label = QLabel(f"Positions for {self.posVarType} computation")  # Can pass a string for this to display a title of the box
+        vb.addWidget(pos_var_type_label)
 
         self.scatterPlot = PyDMScatterPlot(background=self.backgroundColor)
 
@@ -328,4 +324,4 @@ class BpmPosScatter(PyDMFrame):
                 axisToLink.linkedView().addItem(self.fit_lim_x_lines[i])
                 axisToLink.linkedView().addItem(self.fit_lim_y_lines[i])
 
-        fl.addWidget(self.scatterPlot)
+        vb.addWidget(self.scatterPlot)

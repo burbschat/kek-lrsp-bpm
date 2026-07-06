@@ -164,13 +164,17 @@ class PoscalcWindowControls(PyDMFrame):
                 window_label = QLabel(text=f"Wd. {i}")
                 sub_layout.addWidget(window_label)
 
-                window_start = SpinboxWithLabel(f"Start ({units})", init_channel=f"{self.channel}.WindowOpen{'Raw' if units == 'raw' else ''}[{i}]")
+                window_start = SpinboxWithLabel(
+                    f"Start ({units})", init_channel=f"{self.channel}.WindowOpen{'Raw' if units == 'raw' else ''}[{i}]"
+                )
                 window_start.spinbox.setWriteOnPress(True)
                 window_start.spinbox.setShowStepExponent(False)
                 window_start.spinbox.setSingleStep(spin_box_step)
                 sub_layout.addWidget(window_start)
 
-                window_end = SpinboxWithLabel(f"End ({units})", init_channel=f"{self.channel}.WindowClose{'Raw' if units == 'raw' else ''}[{i}]")
+                window_end = SpinboxWithLabel(
+                    f"End ({units})", init_channel=f"{self.channel}.WindowClose{'Raw' if units == 'raw' else ''}[{i}]"
+                )
                 window_end.spinbox.setWriteOnPress(True)
                 window_end.spinbox.setShowStepExponent(False)
                 window_end.spinbox.setSingleStep(spin_box_step)
@@ -295,8 +299,9 @@ class AttenuationControls(PyDMFrame):
 
 # Frame uniting all available controls frames
 class UserControls(PyDMFrame):
-    def __init__(self, parent=None, init_channel=None):
+    def __init__(self, parent=None, init_channel=None, backgroundColor=None):
         super().__init__(parent=parent, init_channel=init_channel)
+        self.backgroundColor = backgroundColor
         self.setup_ui()
 
     def setup_ui(self):
@@ -321,11 +326,11 @@ class UserControls(PyDMFrame):
         # Put waveform display to be able to observe the waveforms while
         # adjusting settings.
         self.waveform_display = WaveformDisplay(
-            parent=None,
             init_channel=self.channel,
             nodePath="SoftwarePositionCalculation",
             waveformNodeName="WaveformData",
-            customRegionColors=["red", "royalblue"],
+            # customRegionColors=["red", "royalblue"],
+            backgroundColor=self.backgroundColor,
         )
         self.attenuation_controls_and_waveform_layout.addWidget(self.waveform_display)
         self.upper_layout.addLayout(self.attenuation_controls_and_waveform_layout)
