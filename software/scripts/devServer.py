@@ -70,6 +70,14 @@ if __name__ == "__main__":
         help     = "Prefix for EPICS CA IOC PVs. If not specified IOC will be disabled.",
     )
 
+    parser.add_argument(
+        "--zmqLocalOnly",
+        type     = argBool,
+        required = False,
+        default  = True,
+        help     = "Set False to allow ZMQ access from other than localhost.",
+    )
+
     # TODO: Not sure how close the RFDC PLL config frequencies should be to the
     # actual sample rate. If problems with e.g. spurs are encountered, perhaps
     # try adjusting the RFDC IP cores config. However I do not believe that
@@ -162,16 +170,17 @@ if __name__ == "__main__":
         print(f"Inferred {nWindows} windows for BPM type {args.bpmType}.")
 
     with kek_lrsp_bpm.Root(
-        ip          = args.ip,
-        bpmType     = args.bpmType,
-        pollEn      = args.pollEn,
-        initRead    = args.initRead,
-        defaultFile = args.defaultFile,
-        lmkConfig   = lmk_config_file,
-        sampleRate  = sampleRate,
-        zmqSrvPort  = args.zmqSrvPort,
-        nWindows    = nWindows,
-        epicsPrefix = args.epicsPrefix,
+        ip           = args.ip,
+        bpmType      = args.bpmType,
+        pollEn       = args.pollEn,
+        initRead     = args.initRead,
+        defaultFile  = args.defaultFile,
+        lmkConfig    = lmk_config_file,
+        sampleRate   = sampleRate,
+        zmqSrvPort   = args.zmqSrvPort,
+        nWindows     = nWindows,
+        epicsPrefix  = args.epicsPrefix,
+        zmqLocalOnly = args.zmqLocalOnly,
     ) as root:
 
         ######################

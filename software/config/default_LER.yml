@@ -1,0 +1,49 @@
+Root:
+  ForceWrite: False
+  InitAfterConfig: False
+  PollEn: True
+  SoftwarePositionCalculation:
+    enable: True
+    RxEnable: True
+    Updated: False
+    WindowOpenRaw[0]: 166
+    WindowCloseRaw[0]: 549
+    WindowOpenRaw[1]: 570
+    WindowCloseRaw[1]: 953
+    ChannelCorrections: '[1.000000000000000000e+00, 1.419579117034161175e+00, 1.278975404062055787e+00, 1.185634718604163140e+00]'
+    SignalMapIndexFile: config/SignalMaps/SignalMapsIndex.json
+    SignalMapName: bemmapler2025 # LER!
+    CppFitterXinit: 0.0
+    CppFitterYinit: 0.0
+  RFSoC:
+    Application:
+      enable: True
+      DacSigGen:
+        enable: True
+        BurstSize: 0x0
+        BufferLength: 0x1c
+        Continuous: 0x1
+        IdleValue: 0
+        Enabled: 0x0 # Disable!
+        CsvFilePath: stripline/DacPatterns/KekLinacBpm-SP_C7_4-Att20dB-96nsSpaced.csv
+      ReadoutCtrl:
+        enable: True
+        LiveDispTrigRaw: 0x1
+        SwFaultTrigRaw: 0x0
+        EnableSoftTrig: True
+        Sma1ppsInSel: irigComp # Must use comparator due to small signal (not optimal)
+        TrigInPolarity: NonInverted
+        TrigInArm: 0x1
+        SetKeepArm: 0x1
+        TrigRingBufDlyRaw: 0x70b5
+        TrigRingBufDly: 113.375
+        deglitchLenRaw: 0x800
+  AttenuationCtrl:
+    enable: True
+    AttChA: 10.000000
+    AttChB: 10.000000
+    AttChC: 10.000000
+    AttChD: 10.000000
+  CalibrationCtrl:
+    enable: True
+    CoeffFile: config/stripline/adcCalibCoeffs_LER.json

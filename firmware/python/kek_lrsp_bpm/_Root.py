@@ -46,13 +46,19 @@ class Root(pr.Root):
         zmqSrvPort=9099,  # Set to zero if dynamic (instead of static)
         nWindows=2,
         epicsPrefix=None,
+        zmqLocalOnly=True,
         **kwargs,
     ):
         super().__init__(timeout=5.0, **kwargs)
 
         #################################################################
 
-        self.zmqServer = pyrogue.interfaces.ZmqServer(root=self, addr="127.0.0.1", port=zmqSrvPort)
+        # Set * to allow zmq access from other than localhost
+        if zmqLocalOnly:
+            addr = "127.0.0.1"
+        else:
+            addr = "*"
+        self.zmqServer = pyrogue.interfaces.ZmqServer(root=self, addr=addr, port=zmqSrvPort)
         self.addInterface(self.zmqServer)
 
         #################################################################

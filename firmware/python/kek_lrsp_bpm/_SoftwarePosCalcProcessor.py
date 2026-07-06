@@ -232,7 +232,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 name="ChannelCorrections",
                 description="Correction factors to apply to each channel reading (waveform sum)",
                 typeStr="Float64[np]",
-                value=np.array([1, 1, 1, 1]),
+                value=np.array([1, 1, 1, 1], dtype=np.float64),
                 hidden=False,
             )
         )
