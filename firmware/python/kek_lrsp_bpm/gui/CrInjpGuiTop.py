@@ -256,6 +256,8 @@ class GuiSingleRing(QFrame):
                 parent=None,
                 init_channel=self.init_channel,
                 backgroundColor=self.backgroundColor,
+                nWindows=2,
+                customColors=["red", "royalblue"],
             ),
             "Pos. Scatter",
         )

@@ -19,14 +19,6 @@ def main():
         help     = "ZeroMQ server's hostname or IP address:port",
     )
 
-    parser.add_argument(
-        "--appType",
-        type     = str,
-        required = False,
-        default  = 'stripline',
-        help     = "Sets the application type (bor or stripline)",
-    )
-
     # Get the arguments
     args = parser.parse_args()
 

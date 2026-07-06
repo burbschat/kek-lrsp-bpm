@@ -18,13 +18,29 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Add arguments
-    # parser.add_argument(
-    #     "--serverList",
-    #     type     = str,
-    #     required = False,
-    #     default  = 'localhost:9099',
-    #     help     = "ZeroMQ server's hostname or IP address:port",
-    # )
+    parser.add_argument(
+        "--zmqServerIP",
+        type     = str,
+        required = False,
+        default  = 'localhost',
+        help     = "ZeroMQ server's hostname or IP address",
+    )
+
+    parser.add_argument(
+        "--zmqServerPortHER",
+        type     = str,
+        required = False,
+        default  = '9099',
+        help     = "ZeroMQ server's port for HER",
+    )
+
+    parser.add_argument(
+        "--zmqServerPortLER",
+        type     = str,
+        required = False,
+        default  = '9103',
+        help     = "ZeroMQ server's port for LER",
+    )
 
     parser.add_argument(
         "--dark",
@@ -45,13 +61,9 @@ def main():
     sizeY = 1000
     maxListExpand = 5
     maxListSize = 100
-    numAdcCh = 1
-    numDacCh = 1
     dark = parsed_args.dark
-    # channelHER = "rogue://172.19.46.9:9099/root"
-    # channelLER = "rogue://172.19.46.9:9103/root"
-    channelHER = "rogue://localhost:9099/root"
-    channelLER = "rogue://localhost:9099/root"
+    channelHER = f"rogue://{parsed_args.zmqServerIP}:{parsed_args.zmqServerPortHER}/root"
+    channelLER = f"rogue://{parsed_args.zmqServerIP}:{parsed_args.zmqServerPortLER}/root"
 
     args = []
     args.append(f"sizeX={sizeX}")
@@ -59,8 +71,6 @@ def main():
     args.append(f"title='{title}'")
     args.append(f"maxListExpand={maxListExpand}")
     args.append(f"maxListSize={maxListSize}")
-    args.append(f"numAdcCh={numAdcCh}")
-    args.append(f"numDacCh={numDacCh}")
     args.append(f"dark={dark}")
     args.append(f"channelHER={channelHER}")
     args.append(f"channelLER={channelLER}")

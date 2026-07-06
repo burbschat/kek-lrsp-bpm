@@ -36,6 +36,8 @@ class Root(pr.Root):
         self,
         ip="10.0.0.10",  # ETH Host Name (or IP address)
         bpmType="bt",
+        hardDisableFit=False,
+        hardDisablePoly=False,
         top_level="",
         defaultFile="",
         lmkConfig="config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt",
@@ -46,6 +48,7 @@ class Root(pr.Root):
         zmqSrvPort=9099,  # Set to zero if dynamic (instead of static)
         nWindows=2,
         epicsPrefix=None,
+        getPvMap=lambda *args, **kwargs: {},
         zmqLocalOnly=True,
         **kwargs,
     ):
@@ -80,10 +83,15 @@ class Root(pr.Root):
 
         # BPM type ('bt' or 'inj')
         self.bpmType = bpmType
+        # Optiont to hard disable poly or fit poscalc
+        self.hardDisableFit = hardDisableFit
+        self.hardDisablePoly = hardDisablePoly
         # Number of windows for which to integrate the signal and compute a position
         self.nWindows = nWindows
         # Prefix string used for EPICS PVs
         self.epicsPrefix = epicsPrefix
+        # Function to obtain rogue variables to PVs map dictionary
+        self.getPvMap = getPvMap
 
         # File writer
         self.dataWriter = pr.utilities.fileio.StreamWriter(name="DataWriter")
@@ -183,7 +191,8 @@ class Root(pr.Root):
             bufferDepth=2**8 * 16,  # TODO: Make dynamic!
             nWindows=self.nWindows,
             hidden=False,
-            hardDisableFit=bpmType == "bt",  # BT only requires poly
+            hardDisableFit=self.hardDisableFit,
+            hardDisablePoly=self.hardDisablePoly,
         )
 
         # Connect the rogue stream arrays: ADC Ring Buffer Paths
@@ -220,51 +229,16 @@ class Root(pr.Root):
 
         # Only enable EPICS bridging when prefix specified
         if self.epicsPrefix is not None:
-            # Build map subset of available rogue variables to EPICS PVs
-            self.pvMap = {}
-
-            # Attenuators
-            self.pvMap["Root.AttenuationCtrl.AttChA"] = "AttChA"
-            self.pvMap["Root.AttenuationCtrl.AttChB"] = "AttChB"
-            self.pvMap["Root.AttenuationCtrl.AttChC"] = "AttChC"
-            self.pvMap["Root.AttenuationCtrl.AttChD"] = "AttChD"
 
             # Position calculation related variables (for each window). Some are
             # only available if poly/fit poscalc is not hard disabled.
             poscalcPath = "Root.SoftwarePositionCalculation"
-
-            self.pvMap[f"{poscalcPath}.ChannelCorrections"] = "CHCORR"
-
-            if not self.posCalcProc._hardDisablePoly:
-                self.pvMap[f"{poscalcPath}.polyEn"] = "POLYEN"
-            if not self.posCalcProc._hardDisableFit:
-                self.pvMap[f"{poscalcPath}.fitEn"] = "FITEN"
-
-            self.pvMap[f"{poscalcPath}.NumWindows"] = "NWIN"
-            for i in range(self.nWindows):
-                self.pvMap[f"{poscalcPath}.WindowOpen[{i}]"] = f"WINOP_{i+1}"
-                self.pvMap[f"{poscalcPath}.WindowClose[{i}]"] = f"WINCL_{i+1}"
-                self.pvMap[f"{poscalcPath}.WindowOpenRaw[{i}]"] = f"WINOP:RAW_{i+1}"
-                self.pvMap[f"{poscalcPath}.WindowCloseRaw[{i}]"] = f"WINCL:RAW_{i+1}"
-                self.pvMap[f"{poscalcPath}.Sums[{i}]"] = f"SUMS_{i+1}"
-                self.pvMap[f"{poscalcPath}.SumsSq[{i}]"] = f"SUMSSQ_{i+1}"
-                self.pvMap[f"{poscalcPath}.Charge[{i}]"] = f"Q_{i+1}"
-                self.pvMap[f"{poscalcPath}.ChargeThreshold[{i}]"] = f"QTHR_{i+1}"
-                if not self.posCalcProc._hardDisablePoly:
-                    self.pvMap[f"{poscalcPath}.XposPoly[{i}]"] = f"X_Poly{i+1}"
-                    self.pvMap[f"{poscalcPath}.YposPoly[{i}]"] = f"Y_Poly{i+1}"
-                if not self.posCalcProc._hardDisableFit:
-                    self.pvMap[f"{poscalcPath}.XposFit[{i}]"] = f"X_{i+1}"
-                    self.pvMap[f"{poscalcPath}.YposFit[{i}]"] = f"Y_{i+1}"
-                    self.pvMap[f"{poscalcPath}.XposFitMaskedStd[{i}]"] = f"XMSKSTD_{i+1}"
-                    self.pvMap[f"{poscalcPath}.YposFitMaskedStd[{i}]"] = f"YMSKSTD_{i+1}"
-                    self.pvMap[f"{poscalcPath}.XposFitMaskedMean[{i}]"] = f"XMSKMEAN_{i+1}"
-                    self.pvMap[f"{poscalcPath}.YposFitMaskedMean[{i}]"] = f"YMSKMEAN_{i+1}"
-                    for j in range(4):
-                        self.pvMap[f"{poscalcPath}.XposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"XMSK{0xf^(0b1<<j):04b}_{i+1}"
-                        self.pvMap[f"{poscalcPath}.YposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"YMSK{0xf^(0b1<<j):04b}_{i+1}"
-
-            self.pvMap[f"{poscalcPath}.ResultsVector"] = "RESWAV"
+            self.pvMap = self.getPvMap(
+                poscalcPath,
+                self.posCalcProc._hardDisablePoly,
+                self.posCalcProc._hardDisableFit,
+                self.nWindows,
+            )
 
             # Instantiate the protocol (self.add call not required for this protocol!)
             self.epicsV7 = pyrogue.protocols.epicsV7.EpicsPvServer(
@@ -319,6 +293,12 @@ class Root(pr.Root):
         self.Rfdc.Mts.SyncAdcTiles()
         self.Rfdc.Mts.SyncDacTiles()
 
+        # Initial loading of position computation related data like poly
+        # coeffs, signal maps etc.
+        # Must happen before config load as otherwise setting SignalMapName may
+        # fail if the index is not yet loaded.
+        self.posCalcProc.startupInit()
+
         # Load the Default YAML file
         print(f"Loading path={self.defaultFile} Default Configuration File...")
         self.LoadConfig(self.defaultFile)
@@ -332,10 +312,6 @@ class Root(pr.Root):
             dacSigGen.LoadCsvFile()
         else:
             self.RFSoC.Application.DacSigGenLoader.LoadSingleTones()
-
-        # Initial loading of position computation related data like poly
-        # coeffs, signal maps etc.
-        self.posCalcProc.startupInit()
 
         # Connect position calculation. Do so after initializing the fitter to
         # avoid the fitter being called with default values which would arrive

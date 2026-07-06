@@ -772,9 +772,11 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
     def _setSignalMapName(self, value, changed):
         if changed:
             # Re-initialize CPP fitter
-            self._initCppFitter()
+            if not self._hardDisableFit:
+                self._initCppFitter()
             # Re-load the polynomial coefficients
-            self._loadPolyCoeffs()
+            if not self._hardDisablePoly:
+                self._loadPolyCoeffs()
 
     def _getCoeffsFilePathFromMapName(self):
         # Read metadata from index
