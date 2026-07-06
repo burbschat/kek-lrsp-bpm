@@ -83,6 +83,7 @@ class EvrTrgsControls(PyDMFrame):
             # Use container so we can easily remove this later
             sub_layout = QHBoxLayout()
             sub_layout.setContentsMargins(0, 0, 0, 0) 
+            sub_layout.setAlignment(QtCore.Qt.AlignLeft)
             container = QWidget()
             container.setLayout(sub_layout)
 
