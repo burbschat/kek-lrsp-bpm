@@ -197,7 +197,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     description="Integration window left boundary in ns",
                     typeStr="Float64",
                     units="ns",
-                    dependencies=[self.WindowOpenRaw[0]],
+                    dependencies=[self.WindowOpenRaw[i]],
                     # Must use default arguments to ensure index properly resolved in each lambda!
                     linkedGet=lambda idx=i: (float(self.WindowOpenRaw[idx].value() * self._timeBin)),
                     linkedSet=lambda value, write, idx=i: self.WindowOpenRaw[idx].set(int(value / self._timeBin)),
