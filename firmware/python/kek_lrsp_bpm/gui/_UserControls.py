@@ -2,7 +2,7 @@
 
 from pydm import PyDMChannel
 from pydm.tools import QWidget
-from _GuiUtils import (
+from kek_lrsp_bpm.gui._GuiUtils import (
     SECTION_TITLE_STYLE,
     IndicatorWithCheckbox,
     IndicatorWithLabel,
@@ -10,8 +10,8 @@ from _GuiUtils import (
     FsmStateIndicator,
     ValueWithLabel,
 )
-from _WaveformDisplay import WaveformDisplay
-from _EvrControls import EvrControls
+from kek_lrsp_bpm.gui._WaveformDisplay import WaveformDisplay
+from kek_lrsp_bpm.gui._EvrControls import EvrControls
 
 from pydm.widgets import PyDMCheckbox, PyDMPushButton
 from pydm.widgets.frame import PyDMFrame

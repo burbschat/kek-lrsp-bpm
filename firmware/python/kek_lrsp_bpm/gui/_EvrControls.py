@@ -5,7 +5,7 @@ from qtpy import QtCore
 from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
 
-from _GuiUtils import (
+from kek_lrsp_bpm.gui._GuiUtils import (
     SECTION_TITLE_STYLE,
     IndicatorWithCheckbox,
     IndicatorWithLabel,

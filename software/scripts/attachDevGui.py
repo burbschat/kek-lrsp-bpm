@@ -1,8 +1,8 @@
 import setupLibPaths # setup the runtime PYTHONPATH paths
 
-import os
 import argparse
-import axi_soc_ultra_plus_core.rfsoc_utility.pydm
+import pyrogue.pydm
+from kek_lrsp_bpm.gui.DevGuiTop import GuiTop
 
 
 def main():
@@ -22,13 +22,15 @@ def main():
     # Get the arguments
     args = parser.parse_args()
 
-    top_level = os.path.realpath(__file__).split("software")[0]
-
-    axi_soc_ultra_plus_core.rfsoc_utility.pydm.runPyDM(
+    pyrogue.pydm.runPyDM(
         serverList=args.serverList,
-        ui=f"{top_level}/firmware/python/kek_lrsp_bpm/gui/DevGuiTop.py",
-        sizeX=800,
-        sizeY=800,
+        display_factory = lambda parent=None, args=[], macros=None: GuiTop(
+            parent   = parent,
+            args     = args + ['numAdcCh=4', 'numDacCh=2'],
+            macros   = macros,
+        ),
+        sizeX    = 800,
+        sizeY    = 800,
     )
 
 
