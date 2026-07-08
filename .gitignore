@@ -33,7 +33,7 @@ Thumps.db
 build.info
 
 # Build directories 
-build*
+**/build/*
 bin*
 .Xil*
 .obj*
