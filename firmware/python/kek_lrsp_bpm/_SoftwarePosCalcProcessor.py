@@ -710,6 +710,35 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             )
         )
 
+        # Add duplicate variables with different names for the one variable on
+        # multiple EPICS PVs workaround
+        self.add(
+            pr.LinkVariable(
+                name=f"XposFit0Dup",
+                variable=self.XposFit[0],
+                mode="RO",
+                hidden=True,
+            )
+        )
+
+        self.add(
+            pr.LinkVariable(
+                name=f"YposFit0Dup",
+                variable=self.YposFit[0],
+                mode="RO",
+                hidden=True,
+            )
+        )
+
+        self.add(
+            pr.LinkVariable(
+                name=f"Charge0Dup",
+                variable=self.Charge[0],
+                mode="RO",
+                hidden=True,
+            )
+        )
+
     def updatePosCalcNodesVisibility(self):
         print("Oh no, updating groups works but this does not appear to be reflected in the Debug Tree?")
         polyEn = self.polyEn.get()

@@ -70,9 +70,12 @@ def get_injplike_pvmap(poscalcPath, hardDisablePoly, hardDisableFit, nWindows, e
                 pvMap[f"{poscalcPath}.YposFitMasked{0xf^(0b1<<j):04b}[{i}]"] = f"YMSK{0xf^(0b1<<j):04b}_{i+1}"
 
     # First bunch only PVs (without numbers) for backwards compatability
+    # Must use workaround with a copy of the variable as the backend only
+    # allows one rogue variable per epics PV.
     if enBackwardCompPVs and not hardDisableFit:
-        pvMap[f"{poscalcPath}.XposFit[{0}]"] = f"X"
-        pvMap[f"{poscalcPath}.YposFit[{0}]"] = f"Y"
+        pvMap[f"{poscalcPath}.XposFit0Dup"] = f"X"
+        pvMap[f"{poscalcPath}.YposFit0Dup"] = f"Y"
+        pvMap[f"{poscalcPath}.Charge0Dup"] = f"Q"
 
     pvMap[f"{poscalcPath}.ResultsVector"] = "RESWAV"
 
