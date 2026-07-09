@@ -4,8 +4,8 @@
     url = git@github.com:burbschat/ruckus.git
 [submodule "firmware/submodules/surf"]
 	path = firmware/submodules/surf
-    #url = ../../slaclab/surf.git
-    url = git@github.com:burbschat/surf.git
+    url = ../../slaclab/surf.git
+    #url = git@github.com:burbschat/surf.git
 [submodule "firmware/submodules/aes-stream-drivers"]
 	path = firmware/submodules/aes-stream-drivers
 	url = ../../slaclab/aes-stream-drivers.git
