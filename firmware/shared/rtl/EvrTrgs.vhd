@@ -108,7 +108,7 @@ begin
 
             -- When reset asserted, do not issue triggers but keep remaining
             -- logic (counter resets unaffected)
-            if (not (rst or axilRstSync)) then
+            if (not (rst = '1' or axilRstSync = '1')) then
                 -- Check if data should be ignored or not. We want to try to ignore
                 -- 'bad' data for triggers to avoid accidental firing I guess.
                 if (not (trgsIgnoreIfKSync = '1' and dataK = '1'))
