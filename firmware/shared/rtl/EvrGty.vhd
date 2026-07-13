@@ -99,7 +99,7 @@ architecture mapping of EvrGty is
     constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, AXIL_BASE_BOT_G, 16);
 
     signal resetGtSync : sl;
-    signal gtHardReset : sl;
+    signal gtReset     : sl;
 
     signal gtRxUserResetSync : sl;
     signal gtTxUserResetSync : sl;
@@ -137,7 +137,7 @@ architecture mapping of EvrGty is
 
     attribute keep of qpll1Locked : signal is "true";
     attribute keep of resetGtSync : signal is "true";
-    attribute keep of gtHardReset : signal is "true";
+    attribute keep of gtReset     : signal is "true";
 
     attribute keep of rxData          : signal is "true";
     attribute keep of rxDataK         : signal is "true";
@@ -163,7 +163,7 @@ architecture mapping of EvrGty is
 
     attribute mark_debug of qpll1Locked : signal is "true";
     attribute mark_debug of resetGtSync : signal is "true";
-    attribute mark_debug of gtHardReset : signal is "true";
+    attribute mark_debug of gtReset     : signal is "true";
 
     attribute mark_debug of rxData          : signal is "true";
     attribute mark_debug of rxDataK         : signal is "true";
@@ -202,6 +202,11 @@ architecture mapping of EvrGty is
         -- qsfpIntL    : sl;
         qsfpLpMode       : sl;
         ignoreQsfpModPrs : sl;
+
+        -- Software resets (write only registers)
+        softRst   : sl;
+        rxSoftRst : sl;
+        txSoftRst : sl;
 
         -- txResetDone    : sl;
         -- txPmaResetDone : sl;
@@ -247,6 +252,11 @@ architecture mapping of EvrGty is
         -- qsfpIntL    => '0',
         qsfpLpMode       => '0',        -- Default is NOT low power
         ignoreQsfpModPrs => '0',
+
+        -- Software resets (write only registers)
+        softRst   => '0',
+        rxSoftRst => '0',
+        txSoftRst => '0',
 
         -- Reset related signals
         -- txResetDone    => '0',
@@ -298,7 +308,7 @@ begin
     evrRxResetDone <= rxResetDone;
     evrTxResetDone <= txResetDone;
 
-    gtHardReset <= resetGtSync or stableRst;
+    gtReset <= resetGtSync or stableRst;
 
     -- Drive QSFP transceiver controls *output* signals according to registers
     qsfpModSelL <= r.qsfpModSelL;
@@ -306,34 +316,35 @@ begin
     qsfpResetL  <= r.qsfpResetL;  -- QSPF reset (not the same as GTY reset!)
     qsfpLpMode  <= r.qsfpLpMode;
 
+    -- Sync async reset and soft reset (axil clock domain) to stableClk
     U_RstGtSync : entity surf.PwrUpRst
         generic map (
             TPD_G      => TPD_G,
             DURATION_G => STABLE_CLK_F_HZ * 1)  -- 1 sec pulse
         port map (
-            arst   => resetGt,                  -- [in]
+            arst   => resetGt or r.softRst,     -- [in]
             clk    => stableClk,                -- [in]
             rstOut => resetGtSync);             -- [out]
 
-    -- Sync evrRxResetAsync to stableClk and tie to gtRxUserResetSync
+    -- Sync evrRxResetAsync or rxSoftRst to stableClk and tie to gtRxUserResetSync
     U_RstSync_Rx : entity surf.PwrUpRst
         generic map (
             TPD_G      => TPD_G,
-            DURATION_G => STABLE_CLK_F_HZ * 1)  -- 1 sec pulse
+            DURATION_G => STABLE_CLK_F_HZ * 1)         -- 1 sec pulse
         port map (
-            arst   => evrRxResetAsync,          -- [in]
-            clk    => stableClk,                -- [in]
-            rstOut => gtRxUserResetSync);       -- [out]
+            arst   => evrRxResetAsync or r.rxSoftRst,  -- [in]
+            clk    => stableClk,                       -- [in]
+            rstOut => gtRxUserResetSync);              -- [out]
 
-    -- Sync evrTxResetAsync to stableClk and tie to gtTxUserResetSync
+    -- Sync evrTxResetAsync or txSoftRst to stableClk and tie to gtTxUserResetSync
     U_RstSync_Tx : entity surf.PwrUpRst
         generic map (
             TPD_G      => TPD_G,
-            DURATION_G => STABLE_CLK_F_HZ * 1)  -- 1 sec pulse
+            DURATION_G => STABLE_CLK_F_HZ * 1)         -- 1 sec pulse
         port map (
-            arst   => evrTxResetAsync,          -- [in]
-            clk    => stableClk,                -- [in]
-            rstOut => gtTxUserResetSync);       -- [out]
+            arst   => evrTxResetAsync or r.txSoftRst,  -- [in]
+            clk    => stableClk,                       -- [in]
+            rstOut => gtTxUserResetSync);              -- [out]
 
     -- Output (recovered and buffered) signal clocks. Event codes/shared bus
     -- also synchronous to this clock.
@@ -373,7 +384,7 @@ begin
             )
         port map(
             stableClk => stableClk,  -- The core expects this to be < usrclk but it still seems to work fine with 156.25 which is > userclk
-            stableRst => gtHardReset,
+            stableRst => gtReset,
             qpll1Lock => qpll1Locked,
 
             -- GTY FPGA IO
@@ -444,7 +455,7 @@ begin
     begin
         if rising_edge(txUsrClk) then
             -- Pull all lines low if reset asserted or tx not yet ready or TX set to silent
-            if gtHardReset = '1' or txResetDone /= '1' or r.evrTxMode = SILENT then
+            if gtReset = '1' or txResetDone /= '1' or r.evrTxMode = SILENT then
                 txData  <= (others => '0');
                 txDataK <= (others => '0');
             elsif r.evrTxMode = DUMMY then
@@ -493,6 +504,11 @@ begin
         -- Latch the current value
         v := r;
 
+        -- Reset strobes
+        v.softRst   := '0';
+        v.rxSoftRst := '0';
+        v.txSoftRst := '0';
+
         ----------------------------------------------------------------------
         --                AXI-Lite Register Logic
         ----------------------------------------------------------------------
@@ -510,6 +526,10 @@ begin
         axiSlaveRegisterR (axilEp, x"00", 3, qsfpIntL);
         axiSlaveRegister (axilEp, x"00", 4, v.qsfpLpMode);  -- Transmitter low power request line state
         axiSlaveRegister (axilEp, x"00", 5, v.ignoreQsfpModPrs);  -- If set, ignore mod prs signal in ready logic
+
+        axiSlaveRegister (axilEp, x"00", 16, v.softRst);  -- Full GTY software reset (write only)
+        axiSlaveRegister (axilEp, x"00", 17, v.rxSoftRst);  -- RX only software reset (write only)
+        axiSlaveRegister (axilEp, x"00", 18, v.txSoftRst);  -- TX only software reset (write only)
 
         axiSlaveRegisterR (axilEp, x"04", 0, txResetDone);
         axiSlaveRegisterR (axilEp, x"04", 1, txPmaResetDone);

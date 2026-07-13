@@ -76,6 +76,37 @@ class EvrGty(pr.Device):
             hidden       = False,
         ))
 
+        # Software resets
+        self.add(pr.RemoteVariable(
+            name         = 'softRst',
+            description  = 'GTY full reset',
+            offset       = 0x0,
+            bitOffset    = 16,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = False,
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'rxSoftRst',
+            description  = 'GTY RX only reset',
+            offset       = 0x0,
+            bitOffset    = 17,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = False,
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'txSoftRst',
+            description  = 'GTY TX only reset',
+            offset       = 0x0,
+            bitOffset    = 18,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = False,
+        ))
+
         for direction, offset in [("tx", 0x4), ("rx", 0x8)]:
             self.add(pr.RemoteVariable(
                 name         = f'{direction}ResetDone',
