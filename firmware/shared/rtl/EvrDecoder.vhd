@@ -27,7 +27,7 @@ entity EvrDecoder is
         AXIL_BASE_ADDR_G : slv(31 downto 0)
         );
     port (
-        usrClk  : in sl;  -- user clock (rx data interface syncrhonous to this clock)
+        clk     : in sl;  -- user clock (rx data interface syncrhonous to this clock)
         rst     : in sl;
         data    : in slv(15 downto 0);
         dataK   : in slv(1 downto 0);
@@ -110,7 +110,7 @@ begin
             N_TRGS_G => N_TRGS_G
             )
         port map(
-            clk       => usrClk,
+            clk       => clk,
             rst       => rst,
             data      => data(7 + EVENT_CODE_BITS_IDX_C * 8 downto 0 + EVENT_CODE_BITS_IDX_C * 8),
             dataK     => dataK(EVENT_CODE_BITS_IDX_C),
@@ -137,7 +137,7 @@ begin
             )
         port map(
             -- Inputs
-            clk       => usrClk,
+            clk       => clk,
             rst       => rst,
             data      => data(7 + DBSD_BITS_IDX_C * 8 downto 0 + DBSD_BITS_IDX_C * 8),
             dataK     => dataK(DBSD_BITS_IDX_C),

@@ -122,12 +122,12 @@ architecture top_level of KekLrspBpmBt is
    signal xvcRst156 : sl;
 
    -- Transceiver serial data outputs
-   signal usrClk    : sl;  -- user clock (rx data interface syncrhonous to this clock)
-   signal data      : slv(15 downto 0);
-   signal dataValid : sl;  -- Held low until GTY ready (running and aligned)
-   signal dataK     : slv(1 downto 0);
-   signal dispErr   : slv(1 downto 0);
-   signal decErr    : slv(1 downto 0);
+   signal usrClk   : sl;  -- user clock (rx data interface syncrhonous to this clock)
+   signal data     : slv(15 downto 0);
+   signal gtyReady : sl;  -- Held low until GTY ready (running and aligned)
+   signal dataK    : slv(1 downto 0);
+   signal dispErr  : slv(1 downto 0);
+   signal decErr   : slv(1 downto 0);
 
 begin
 
@@ -305,12 +305,12 @@ begin
          axilWriteSlave  => axilWriteSlaves(GT_INDEX_C),
 
          -- Serial data outputs
-         usrClk    => usrClk,
-         data      => data,
-         dataValid => dataValid,
-         dataK     => dataK,
-         dispErr   => dispErr,
-         decErr    => decErr
+         usrClk   => usrClk,
+         data     => data,
+         gtyReady => gtyReady,
+         dataK    => dataK,
+         dispErr  => dispErr,
+         decErr   => decErr
          );
 
    --------------
@@ -337,7 +337,7 @@ begin
          -- Serial data from transceiver
          usrClk          => usrClk,
          data            => data,
-         dataValid       => dataValid,
+         gtyReady        => gtyReady,
          dataK           => dataK,
          dispErr         => dispErr,
          decErr          => decErr,

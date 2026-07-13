@@ -66,6 +66,16 @@ class EvrGty(pr.Device):
             hidden       = False,
         ))
 
+        self.add(pr.RemoteVariable(
+            name         = 'ignoreQsfpModPrs',
+            description  = 'Set to ignore qsfpModPrsL in ready signal logic (if not set, no ready until qsfpModPrsL=0)',
+            offset       = 0x0,
+            bitOffset    = 5,
+            bitSize      = 1,
+            mode         = 'RW',
+            hidden       = False,
+        ))
+
         for direction, offset in [("tx", 0x4), ("rx", 0x8)]:
             self.add(pr.RemoteVariable(
                 name         = f'{direction}ResetDone',

@@ -61,12 +61,12 @@ entity EvrGty is
         qsfpLpMode  : out sl;
 
         -- Serial data out
-        usrClk    : out sl;  -- user clock (rx data interface syncrhonous to this clock)
-        data      : out slv(15 downto 0);
-        dataValid : out sl;  -- Held low until GTY ready (running and aligned)
-        dataK     : out slv(1 downto 0);
-        dispErr   : out slv(1 downto 0);
-        decErr    : out slv(1 downto 0);
+        usrClk   : out sl;  -- user clock (rx data interface syncrhonous to this clock)
+        data     : out slv(15 downto 0);
+        gtyReady : out sl;  -- Held low until GTY ready (running and aligned and qsfp present if not ignored)
+        dataK    : out slv(1 downto 0);
+        dispErr  : out slv(1 downto 0);
+        decErr   : out slv(1 downto 0);
 
         -- AXI-Lite DRP interface
         axilClk         : in  sl                     := '0';
@@ -196,11 +196,12 @@ architecture mapping of EvrGty is
         );
 
     type RegType is record
-        qsfpModSelL : sl;               -- Pull low for access over i2c!
-        qsfpResetL  : sl;
+        qsfpModSelL      : sl;          -- Pull low for access over i2c!
+        qsfpResetL       : sl;
         -- qsfpModPrsL : sl;
         -- qsfpIntL    : sl;
-        qsfpLpMode  : sl;
+        qsfpLpMode       : sl;
+        ignoreQsfpModPrs : sl;
 
         -- txResetDone    : sl;
         -- txPmaResetDone : sl;
@@ -240,11 +241,12 @@ architecture mapping of EvrGty is
         -- Pull this signal low for access over i2c (address 0x50 as specified in
         -- SFF-8636)! If I do not pull this low, there is still some EEPROM I can
         -- write to/read from??? Not sure what is going on there...
-        qsfpModSelL => '0',             -- Default is selected!
-        qsfpResetL  => '1',
+        qsfpModSelL      => '0',        -- Default is selected!
+        qsfpResetL       => '1',
         -- qsfpModPrsL => '0',
         -- qsfpIntL    => '0',
-        qsfpLpMode  => '0',             -- Default is NOT low power
+        qsfpLpMode       => '0',        -- Default is NOT low power
+        ignoreQsfpModPrs => '0',
 
         -- Reset related signals
         -- txResetDone    => '0',
@@ -284,13 +286,14 @@ architecture mapping of EvrGty is
 
 begin
     -- Serial data outputs
-    usrClk    <= rxUsrClk;
-    data      <= rxData;
-    dataValid <= rxResetDone and rxByteIsAligned;  -- Use to hold decoder in reset until ready
-    dataK     <= rxDataK;
-    dispErr   <= rxDispErr;
-    decErr    <= rxDecErr;
-
+    usrClk   <= rxUsrClk;
+    data     <= rxData;
+    dataK    <= rxDataK;
+    dispErr  <= rxDispErr;
+    decErr   <= rxDecErr;
+    -- Use ready signal to hold decoder in reset until gty ready.
+    -- QSFP present can be ignored for e.g. testing without QSFP module.
+    gtyReady <= rxResetDone and rxByteIsAligned and (not qsfpModPrsL or r.ignoreQsfpModPrs);
 
     evrRxResetDone <= rxResetDone;
     evrTxResetDone <= txResetDone;
@@ -506,6 +509,7 @@ begin
         axiSlaveRegisterR (axilEp, x"00", 2, qsfpModPrsL);
         axiSlaveRegisterR (axilEp, x"00", 3, qsfpIntL);
         axiSlaveRegister (axilEp, x"00", 4, v.qsfpLpMode);  -- Transmitter low power request line state
+        axiSlaveRegister (axilEp, x"00", 5, v.ignoreQsfpModPrs);  -- If set, ignore mod prs signal in ready logic
 
         axiSlaveRegisterR (axilEp, x"04", 0, txResetDone);
         axiSlaveRegisterR (axilEp, x"04", 1, txPmaResetDone);

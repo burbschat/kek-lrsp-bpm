@@ -47,7 +47,7 @@ entity Application is
       -- Serial from transceiver
       usrClk          : in  sl;  -- user clock (rx data interface syncrhonous to this clock)
       data            : in  slv(15 downto 0);
-      dataValid       : in  sl;  -- Held low until GTY ready (running and aligned)
+      gtyReady        : in  sl;  -- Held low until GTY ready (running and aligned)
       dataK           : in  slv(1 downto 0);
       dispErr         : in  slv(1 downto 0);
       decErr          : in  slv(1 downto 0);
@@ -227,7 +227,13 @@ begin
          -- channels * 2 byte/sample = 32768) + maximum shared data width = 2048
          -- byte.
          SUPER_FRAME_BYTE_THRESHOLD_G => 65536,  -- 2**16 suffices if address width is 8
-         MAX_CLK_GAP_G                => 256,  -- Might want to make this longer depending on whether shot ID is distributed before or after each shot
+         -- Might want to make this longer depending on whether shot ID is distributed
+         -- before or after each shot.
+         -- If DBSD frame buffer is empty, it will ignore a trigger. In this case
+         -- data is held off by this count, so probably want to keep this small.
+         -- Alternative would be to configure the buffer to always dump it
+         -- complete contents. TODO: Requires PR to upstream surf.
+         MAX_CLK_GAP_G                => 32,
          AXIS_CONFIG_G                => DMA_AXIS_CONFIG_C
          )
       port map(
@@ -254,12 +260,12 @@ begin
          )
       port map(
          -- Serial data input
-         usrClk  => usrClk,
+         clk     => usrClk,
          data    => data,
          dataK   => dataK,
          dispErr => dispErr,
          decErr  => decErr,
-         rst     => not dataValid,  -- Keep in reset until data valid (forces reset while GTY resetting)
+         rst     => not gtyReady,  -- Keep in reset until data valid (forces reset while GTY resetting)
 
          -- Trigger outputs
          trgs => evrTrgs,

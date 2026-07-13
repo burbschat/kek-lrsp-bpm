@@ -18,7 +18,7 @@ entity EvrTrgs is
         );
     port (
         clk       : in sl;
-        rst       : in sl; -- TODO: Implement proper reset
+        rst       : in sl;
         data      : in slv(7 downto 0);
         dataValid : in sl;
         dataK     : in sl;
@@ -42,10 +42,18 @@ architecture rtl of EvrTrgs is
 
     -- Counters incremented on trigger of a given trigger line. Both
     -- synchronous to usr clock NOT axil clock!
-    signal trgCounts       : Slv32Array(N_TRGS_G - 1 downto 0) := (others => (others => '0'));
-    signal trgCountsResets : slv(N_TRGS_G - 1 downto 0);
+    signal trgCounts           : Slv32Array(N_TRGS_G - 1 downto 0) := (others => (others => '0'));
+    signal trgCountsResetsSync : slv(N_TRGS_G - 1 downto 0);
 
     signal eventCodeInt : slv(7 downto 0);
+
+    signal syncVecEvMapIn  : slv(N_TRGS_G * 8 - 1 downto 0);
+    signal syncVecEvMapOut : slv(N_TRGS_G * 8 - 1 downto 0);
+
+    signal trgsEventMapSync        : Slv8Array(N_TRGS_G - 1 downto 0);
+    signal trgsIgnoreIfKSync       : sl;
+    signal trgsIgnoreIfInvalidSync : sl;
+    signal axilRstSync             : sl;
 
     type RegType is record
         trgsIgnoreIfK       : sl;
@@ -69,7 +77,7 @@ architecture rtl of EvrTrgs is
         -- someone wants to trigger on every receive cycle? Just leave it for now.
         trgsEventMap => (others => (others => '1')),
 
-        trgCountsResets => (others => '0'),
+        trgCountsResets => (others => '1'),  -- Reset counter lines high to reset counters on axil reset
 
         axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
         axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
@@ -98,27 +106,31 @@ begin
             trgsVar      := (others => '0');
             newTrgCounts := trgCounts;  -- Init with current counts, later reset or increment, then assign back to signal
 
-            -- Check if data should be ignored or not. We want to try to ignore
-            -- 'bad' data for triggers to avoid accidental firing I guess.
-            if (not (r.trgsIgnoreIfK = '1' and dataK = '1'))
-                and (not (r.trgsIgnoreIfInvalid = '1' and dataValid = '0')) then
-                -- Check against all event codes in the triggers to events map
-                -- register. Will this result in very complicated logic? If so,
-                -- avoidable?
-                -- TODO: Should we synchronize this register to clk to
-                -- ensure no accidental triggers which perhaps could happen if we
-                -- read this register at just the time it is changed by the
-                -- axil process?
-                for i in 0 to N_TRGS_G - 1 loop
-                    if r.trgsEventMap(i) = data then
-                        trgsVar(i)      := '1';
-                        newTrgCounts(i) := newTrgCounts(i) + 1;  -- Increase corresponding counter
-                    end if;
-                end loop;
+            -- When reset asserted, do not issue triggers but keep remaining
+            -- logic (counter resets unaffected)
+            if (not (rst or axilRstSync)) then
+                -- Check if data should be ignored or not. We want to try to ignore
+                -- 'bad' data for triggers to avoid accidental firing I guess.
+                if (not (trgsIgnoreIfKSync = '1' and dataK = '1'))
+                    and (not (trgsIgnoreIfInvalidSync = '1' and dataValid = '0')) then
+                    -- Check against all event codes in the triggers to events map
+                    -- register. Will this result in very complicated logic? If so,
+                    -- avoidable?
+                    -- Synchronize eventMapSync register to clk to ensure
+                    -- no accidental triggers which perhaps could happen if we
+                    -- read this register at just the time it is changed by the
+                    -- axil process.
+                    for i in 0 to N_TRGS_G - 1 loop
+                        if trgsEventMapSync(i) = data then
+                            trgsVar(i)      := '1';
+                            newTrgCounts(i) := newTrgCounts(i) + 1;  -- Increase corresponding counter
+                        end if;
+                    end loop;
 
-                -- TODO: I guess that assumes that lines never stay high in idle? Maybe not a true assumption here...
-                -- Update eventCode signal, but only if new good data received
-                eventCodeInt <= data;
+                    -- TODO: I guess that assumes that lines never stay high in idle? Maybe not a true assumption here...
+                    -- Update eventCode signal, but only if new good data received
+                    eventCodeInt <= data;
+                end if;
             end if;
 
             -- Trigger counts reset
@@ -129,7 +141,7 @@ begin
             -- between resets is ensured to actually equal the number
             -- of total triggers.
             for i in 0 to N_TRGS_G - 1 loop
-                if trgCountsResets(i) = '1' then
+                if trgCountsResetsSync(i) = '1' then
                     newTrgCounts(i) := (others => '0');  -- Use variable to control assignment order
                 end if;
             end loop;
@@ -144,6 +156,47 @@ begin
         end if;
     end process TRGS_PROC;
 
+    -- Synchronize event map from axil clock domain
+    Gen_SyncVecEvMapIn : for i in 0 to N_TRGS_G-1 generate
+        syncVecEvMapIn(7 + i*8 downto 0 + i*8) <= r.trgsEventMap(i);
+        trgsEventMapSync(i)                    <= syncVecEvMapOut(7 + i*8 downto 0 + i*8);
+    end generate Gen_SyncVecEvMapIn;
+
+    U_SyncVecEvMap : entity surf.SynchronizerVector
+        generic map(
+            TPD_G   => TPD_G,
+            WIDTH_G => N_TRGS_G * 8
+            )
+        port map(
+            clk     => clk,
+            rst     => rst,
+            dataIn  => syncVecEvMapIn,
+            dataOut => syncVecEvMapOut);
+
+    -- Synchronize 'ignore if' registers
+    U_SyncTrgsIgnoreIfK : entity surf.Synchronizer
+        generic map(TPD_G => TPD_G)
+        port map(
+            clk     => clk,
+            rst     => rst,
+            dataIn  => r.trgsIgnoreIfK,
+            dataOut => trgsIgnoreIfKSync);
+
+    U_SyncTrgsIgnoreIfInvalid : entity surf.Synchronizer
+        generic map(TPD_G => TPD_G)
+        port map(
+            clk     => clk,
+            rst     => rst,
+            dataIn  => r.trgsIgnoreIfInvalid,
+            dataOut => trgsIgnoreIfInvalidSync);
+
+    -- Synchronize axil reset
+    U_AxilRstSync : entity surf.RstSync
+        generic map (TPD_G => TPD_G)
+        port map (
+            clk      => clk,
+            asyncrst => axilRst,
+            syncRst  => axilRstSync);
 
     -- Synchronize counter reset from axi clock domain (register interface) to usr clock domain.
     -- Use one-shot synchronizer to make sure we don't accidentally keep resets on usr clock side
@@ -152,14 +205,15 @@ begin
     -- TODO: The counters itself should also be synchronized? Not catching a signal
     -- as for reset strobes should be no problem but perhaps reading it during a transition
     -- might be? But how would the synchronizer resolve such an issue to begin with...
-    U_SyncV_Inst : entity surf.SynchronizerOneShotVector
+    U_SyncVecCounts : entity surf.SynchronizerOneShotVector
         generic map(
             TPD_G   => TPD_G,
             WIDTH_G => N_TRGS_G)
         port map(
             clk     => clk,
+            rst     => rst,
             dataIn  => r.trgCountsResets,
-            dataOut => trgCountsResets);
+            dataOut => trgCountsResetsSync);
 
 
     -- AXI-Lite register interface processes

@@ -162,6 +162,7 @@ begin
         port map (
             -- Data to store in ring buffer (dataClk domain)
             dataClk         => clk,
+            dataRst         => rst,
             dataValid       => dataR.writeEn,
             dataValue       => dataR.sdData,  -- Data line shared between buffers, use write enable to only capture valid data
             dataFrameTxLast => dataR.recDone,
@@ -174,7 +175,7 @@ begin
             axilReadSlave   => axilReadSlaves(FB_INDEX_C),
             axilWriteMaster => axilWriteMasters(FB_INDEX_C),
             axilWriteSlave  => axilWriteSlaves(FB_INDEX_C),
-            axilRdTrig      => '0', -- Optional trigger signal synchronous to axilClk
+            axilRdTrig      => '0',  -- Optional trigger signal synchronous to axilClk
             -- AXI-Stream Interface (axisClk domain)
             axisClk         => axisClk,
             axisRst         => axisRst,
@@ -257,7 +258,7 @@ begin
                 end if;
             else
                 -- if SD disabled, all transmissions are DB and we don't have
-                -- to care about alignement or states
+                -- to care about alignment or states
                 v.distrBus := data;
             end if;
         end if;

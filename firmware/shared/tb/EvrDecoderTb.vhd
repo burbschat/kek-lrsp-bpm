@@ -85,7 +85,7 @@ begin
         generic map (
             CLK_PERIOD_G      => AXI_CLK_PERIOD_C,
             RST_START_DELAY_G => 0 ns,  -- Wait this long into simulation before asserting reset
-            RST_HOLD_TIME_G   => 1000 ns)           -- Hold reset for this long
+            RST_HOLD_TIME_G   => 1000 ns)  -- Hold reset for this long
         port map (
             clkP => axiClk,
             clkN => open,
@@ -103,7 +103,7 @@ begin
             )
         port map(
             -- Serial data input
-            usrClk  => dataClk,
+            clk     => dataClk,
             data    => r.data,
             dataK   => r.dataK,
             dispErr => (others => '0'),  -- No errors
