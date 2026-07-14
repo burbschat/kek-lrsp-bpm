@@ -495,7 +495,10 @@ begin
         rxDecErr,
         rxByteIsAligned,
         rxByteRealign,
-        rxCommaDet
+        rxCommaDet,
+        resetGtSync, 
+        gtRxUserResetSync, 
+        gtTxUserResetSync
         ) is
         variable v      : RegType;
         variable axilEp : AxiLiteEndPointType;
