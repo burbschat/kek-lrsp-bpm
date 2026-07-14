@@ -522,8 +522,8 @@ begin
 
         axiSlaveRegister (axilEp, x"00", 0, v.qsfpModSelL);
         axiSlaveRegister (axilEp, x"00", 1, v.qsfpResetL);
-        axiSlaveRegisterR (axilEp, x"00", 2, qsfpModPrsL);
-        axiSlaveRegisterR (axilEp, x"00", 3, qsfpIntL);
+        axiSlaveRegisterR(axilEp, x"00", 2, qsfpModPrsL);
+        axiSlaveRegisterR(axilEp, x"00", 3, qsfpIntL);
         axiSlaveRegister (axilEp, x"00", 4, v.qsfpLpMode);  -- Transmitter low power request line state
         axiSlaveRegister (axilEp, x"00", 5, v.ignoreQsfpModPrs);  -- If set, ignore mod prs signal in ready logic
 
@@ -534,24 +534,24 @@ begin
         axiSlaveRegisterR(axilEp, x"00", 20, gtRxUserResetSync); -- Readback of long reset pulse
         axiSlaveRegisterR(axilEp, x"00", 21, gtTxUserResetSync); -- Readback of long reset pulse
 
-        axiSlaveRegisterR (axilEp, x"04", 0, txResetDone);
-        axiSlaveRegisterR (axilEp, x"04", 1, txPmaResetDone);
-        axiSlaveRegisterR (axilEp, x"04", 2, txUsrClkActive);  -- User interface TX clock ready, i.e. ready to transmit
+        axiSlaveRegisterR(axilEp, x"04", 0, txResetDone);
+        axiSlaveRegisterR(axilEp, x"04", 1, txPmaResetDone);
+        axiSlaveRegisterR(axilEp, x"04", 2, txUsrClkActive);  -- User interface TX clock ready, i.e. ready to transmit
         axiSlaveRegister (axilEp, x"04", 3, v.tx8b10bEn);  -- TX 8b10b decode enable
         axiSlaveRegister (axilEp, x"04", 4, v.txPolarity);  -- GTY TX polarity
 
-        axiSlaveRegisterR (axilEp, x"08", 0, rxResetDone);
-        axiSlaveRegisterR (axilEp, x"08", 1, rxPmaResetDone);
-        axiSlaveRegisterR (axilEp, x"08", 2, rxUsrClkActive);  -- User interface RX clock ready, i.e. ready to transmit
+        axiSlaveRegisterR(axilEp, x"08", 0, rxResetDone);
+        axiSlaveRegisterR(axilEp, x"08", 1, rxPmaResetDone);
+        axiSlaveRegisterR(axilEp, x"08", 2, rxUsrClkActive);  -- User interface RX clock ready, i.e. ready to transmit
         axiSlaveRegister (axilEp, x"08", 3, v.rx8b10bEn);  -- RX 8b10b decode enable
         axiSlaveRegister (axilEp, x"08", 4, v.rxPolarity);  -- GTY RX polarity
 
-        axiSlaveRegisterR (axilEp, x"0c", 0, rxCdrStable);
-        axiSlaveRegisterR (axilEp, x"0c", 1, rxDispErr);   -- Two bit register
-        axiSlaveRegisterR (axilEp, x"0c", 3, rxDecErr);    -- Two bit register
-        axiSlaveRegisterR (axilEp, x"0c", 5, rxByteIsAligned);  -- Signals bytes are aligned
-        axiSlaveRegisterR (axilEp, x"0c", 6, rxByteRealign);  -- Strobed on byte realign
-        axiSlaveRegisterR (axilEp, x"0c", 7, rxCommaDet);  -- Strobed on comma detected
+        axiSlaveRegisterR(axilEp, x"0c", 0, rxCdrStable);
+        axiSlaveRegisterR(axilEp, x"0c", 1, rxDispErr);   -- Two bit register
+        axiSlaveRegisterR(axilEp, x"0c", 3, rxDecErr);    -- Two bit register
+        axiSlaveRegisterR(axilEp, x"0c", 5, rxByteIsAligned);  -- Signals bytes are aligned
+        axiSlaveRegisterR(axilEp, x"0c", 6, rxByteRealign);  -- Strobed on byte realign
+        axiSlaveRegisterR(axilEp, x"0c", 7, rxCommaDet);  -- Strobed on comma detected
         axiSlaveRegister (axilEp, x"0c", 8, v.rxCommaDetEn);  -- GTY RX comma detection enable
         axiSlaveRegister (axilEp, x"0c", 9, v.rxMCommaAlignEn);  -- GTY RX align on minus comma enable
         axiSlaveRegister (axilEp, x"0c", 10, v.rxPCommaAlignEn);  -- GTY RX align on plus comma enable
