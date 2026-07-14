@@ -23,7 +23,7 @@ class EvrDbSdControls(PyDMFrame):
 
     def setup_ui(self):
         self.main_layout = QHBoxLayout()
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(2)
         self.setLayout(self.main_layout)
 
@@ -48,7 +48,7 @@ class EvrTrgsControls(PyDMFrame):
 
     def setup_ui(self):
         self.main_layout = QVBoxLayout()
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
@@ -82,7 +82,7 @@ class EvrTrgsControls(PyDMFrame):
         for i in range(self.num_trigs):
             # Use container so we can easily remove this later
             sub_layout = QHBoxLayout()
-            sub_layout.setContentsMargins(0, 0, 0, 0) 
+            sub_layout.setContentsMargins(0, 0, 0, 0)
             sub_layout.setAlignment(QtCore.Qt.AlignLeft)
             container = QWidget()
             container.setLayout(sub_layout)
@@ -139,7 +139,7 @@ class EvrGtyControls(PyDMFrame):
 
     def setup_ui(self):
         self.main_layout = QVBoxLayout()
-        self.main_layout.setContentsMargins(0, 0, 0, 0) 
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
@@ -155,6 +155,20 @@ class EvrGtyControls(PyDMFrame):
         # Give reset_l a more intuitive name (active)...
         self.qsfp_mod_rst_l = IndicatorWithCheckbox(text="QSFP Mod. Active", init_channel=f"{self.channel}.qsfpResetL")
         self.grid_layout.addWidget(self.qsfp_mod_rst_l, 0, 1)
+
+        # Software reset buttons
+        self.rx_soft_reset_button = PyDMPushButton(
+            label="RX Soft Rst.", pressValue=1, init_channel=f"{self.channel}.rxSoftRst"
+        )
+        self.grid_layout.addWidget(self.rx_soft_reset_button, 0, 2)
+        self.tx_soft_reset_button = PyDMPushButton(
+            label="TX Soft Rst.", pressValue=1, init_channel=f"{self.channel}.txSoftRst"
+        )
+        self.grid_layout.addWidget(self.tx_soft_reset_button, 0, 3)
+        self.full_soft_reset_button = PyDMPushButton(
+            label="Full Rst.", pressValue=1, init_channel=f"{self.channel}.softRst"
+        )
+        self.grid_layout.addWidget(self.full_soft_reset_button, 0, 4)
 
         for dir, layout, row in [["tx", self.grid_layout, 1], ["rx", self.grid_layout, 2]]:
             reset_done = IndicatorWithLabel(
