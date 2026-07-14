@@ -113,7 +113,7 @@ class EvrGty(pr.Device):
             offset       = 0x0,
             bitOffset    = 19,
             bitSize      = 1,
-            mode         = 'WO',
+            mode         = 'RO',
             hidden       = False,
         ))
 
@@ -121,9 +121,9 @@ class EvrGty(pr.Device):
             name         = 'gtRxUserResetSync',
             description  = 'GTY RX only reset signal readback',
             offset       = 0x0,
-            bitOffset    = 19,
+            bitOffset    = 20,
             bitSize      = 1,
-            mode         = 'WO',
+            mode         = 'RO',
             hidden       = False,
         ))
 
@@ -131,9 +131,9 @@ class EvrGty(pr.Device):
             name         = 'gtTxUserResetSync',
             description  = 'GTY TX only reset signal readback',
             offset       = 0x0,
-            bitOffset    = 19,
+            bitOffset    = 21,
             bitSize      = 1,
-            mode         = 'WO',
+            mode         = 'RO',
             hidden       = False,
         ))
 
