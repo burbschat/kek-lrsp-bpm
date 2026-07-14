@@ -107,6 +107,36 @@ class EvrGty(pr.Device):
             hidden       = False,
         ))
 
+        self.add(pr.RemoteVariable(
+            name         = 'resetGtSync',
+            description  = 'GTY full reset signal readback',
+            offset       = 0x0,
+            bitOffset    = 19,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = False,
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'gtRxUserResetSync',
+            description  = 'GTY RX only reset signal readback',
+            offset       = 0x0,
+            bitOffset    = 19,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = False,
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'gtTxUserResetSync',
+            description  = 'GTY TX only reset signal readback',
+            offset       = 0x0,
+            bitOffset    = 19,
+            bitSize      = 1,
+            mode         = 'WO',
+            hidden       = False,
+        ))
+
         for direction, offset in [("tx", 0x4), ("rx", 0x8)]:
             self.add(pr.RemoteVariable(
                 name         = f'{direction}ResetDone',

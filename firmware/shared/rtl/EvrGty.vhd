@@ -530,6 +530,9 @@ begin
         axiSlaveRegister (axilEp, x"00", 16, v.softRst);  -- Full GTY software reset (write only)
         axiSlaveRegister (axilEp, x"00", 17, v.rxSoftRst);  -- RX only software reset (write only)
         axiSlaveRegister (axilEp, x"00", 18, v.txSoftRst);  -- TX only software reset (write only)
+        axiSlaveRegisterR(axilEp, x"00", 19, resetGtSync); -- Readback of long reset pulse
+        axiSlaveRegisterR(axilEp, x"00", 20, gtRxUserResetSync); -- Readback of long reset pulse
+        axiSlaveRegisterR(axilEp, x"00", 21, gtTxUserResetSync); -- Readback of long reset pulse
 
         axiSlaveRegisterR (axilEp, x"04", 0, txResetDone);
         axiSlaveRegisterR (axilEp, x"04", 1, txPmaResetDone);
