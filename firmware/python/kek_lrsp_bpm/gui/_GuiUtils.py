@@ -15,16 +15,19 @@ SECTION_TITLE_STYLE = "\
 
 INDICATOR_HEIGHT_SCALE = 1.3
 
+DEFAULT_HOR_SPACING = (0, 0, 0, 0)
+
 
 class IndicatorWithCheckbox(PyDMFrame):
-    def __init__(self, text, parent=None, init_channel=None):
+    def __init__(self, text, parent=None, init_channel=None, spacing=DEFAULT_HOR_SPACING):
         super().__init__(parent=parent, init_channel=init_channel)
         self.text = text
+        self.spacing = spacing
         self.setup_ui()
 
     def setup_ui(self):
         self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.setContentsMargins(0, 0, 0, 0) 
+        self.horizontal_layout.setContentsMargins(*self.spacing)
         self.setLayout(self.horizontal_layout)
         self.indicator = PyDMMultiStateIndicator(init_channel=self.channel)
         self.indicator.setState0Color(QColor("Red"))
@@ -38,14 +41,15 @@ class IndicatorWithCheckbox(PyDMFrame):
 
 
 class IndicatorWithLabel(PyDMFrame):
-    def __init__(self, text, parent=None, init_channel=None):
+    def __init__(self, text, parent=None, init_channel=None, spacing=DEFAULT_HOR_SPACING):
         super().__init__(parent=parent, init_channel=init_channel)
         self.text = text
+        self.spacing = spacing
         self.setup_ui()
 
     def setup_ui(self):
         self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.setContentsMargins(0, 0, 0, 0) 
+        self.horizontal_layout.setContentsMargins(*self.spacing)
         self.setLayout(self.horizontal_layout)
         self.indicator = PyDMMultiStateIndicator(init_channel=self.channel)
         self.indicator.setState0Color(QColor("Red"))
@@ -59,14 +63,15 @@ class IndicatorWithLabel(PyDMFrame):
 
 
 class ValueWithLabel(PyDMFrame):
-    def __init__(self, text, parent=None, init_channel=None):
+    def __init__(self, text, parent=None, init_channel=None, spacing=DEFAULT_HOR_SPACING):
         super().__init__(parent=parent, init_channel=init_channel)
         self.text = text
+        self.spacing = spacing
         self.setup_ui()
 
     def setup_ui(self):
         self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.setContentsMargins(0, 0, 0, 0) 
+        self.horizontal_layout.setContentsMargins(*self.spacing)
         self.horizontal_layout.setAlignment(QtCore.Qt.AlignLeft)
         self.setLayout(self.horizontal_layout)
         self.label = QLabel(self.text)
@@ -76,17 +81,18 @@ class ValueWithLabel(PyDMFrame):
 
 
 class SpinboxWithLabel(PyDMFrame):
-    def __init__(self, text, parent=None, init_channel=None, val_min=0, val_max=1e6, precision=3):
+    def __init__(self, text, parent=None, init_channel=None, val_min=0, val_max=1e6, precision=3, spacing=DEFAULT_HOR_SPACING):
         super().__init__(parent=parent, init_channel=init_channel)
         self.text = text
         self.val_min = val_min
         self.val_max = val_max
         self.precision = precision
+        self.spacing = spacing
         self.setup_ui()
 
     def setup_ui(self):
         self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.setContentsMargins(0, 0, 0, 0) 
+        self.horizontal_layout.setContentsMargins(*self.spacing)
         self.horizontal_layout.setAlignment(QtCore.Qt.AlignLeft)
         self.setLayout(self.horizontal_layout)
         self.label = QLabel(self.text)
@@ -101,16 +107,17 @@ class SpinboxWithLabel(PyDMFrame):
 
 
 class FsmStateIndicator(PyDMFrame):
-    def __init__(self, text, parent=None, state_val_node=None, state_name_node=None, init_channel=None):
+    def __init__(self, text, parent=None, state_val_node=None, state_name_node=None, init_channel=None, spacing=DEFAULT_HOR_SPACING):
         super().__init__(parent=parent, init_channel=init_channel)
         self.state_val_channel = f"{self.channel}.{state_val_node}"
         self.state_name_channel = f"{self.channel}.{state_name_node}"
         self.text = text
+        self.spacing = spacing
         self.setup_ui()
 
     def setup_ui(self):
         self.horizontal_layout = QHBoxLayout()
-        self.horizontal_layout.setContentsMargins(0, 0, 0, 0) 
+        self.horizontal_layout.setContentsMargins(*self.spacing)
         self.horizontal_layout.setAlignment(QtCore.Qt.AlignLeft)
         self.setLayout(self.horizontal_layout)
         self.indicator = PyDMMultiStateIndicator(init_channel=self.state_val_channel)

@@ -3,7 +3,7 @@ from pydm.tools import QWidget
 from pydm.widgets import PyDMFrame, PyDMPushButton
 from qtpy import QtCore
 from qtpy.QtGui import QColor
-from qtpy.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
+from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout
 
 from kek_lrsp_bpm.gui._GuiUtils import (
     SECTION_TITLE_STYLE,
@@ -143,54 +143,47 @@ class EvrGtyControls(PyDMFrame):
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
-        self.qsfp_layout = QHBoxLayout()
-        self.main_layout.addLayout(self.qsfp_layout)
+        self.grid_layout = QGridLayout()
+        self.main_layout.addLayout(self.grid_layout)
 
         self.qsfp_mod_prs_l = IndicatorWithLabel(text="QSFP Module Present", init_channel=f"{self.channel}.qsfpModPrsL")
         # Low means present so invert colors
         self.qsfp_mod_prs_l.indicator.setState0Color(QColor("LawnGreen"))
         self.qsfp_mod_prs_l.indicator.setState1Color(QColor("Red"))
-        self.qsfp_layout.addWidget(self.qsfp_mod_prs_l)
+        self.grid_layout.addWidget(self.qsfp_mod_prs_l, 0, 0)
 
-        # Give reset_l a more intuitive name (activate)...
-        self.qsfp_mod_rst_l = IndicatorWithCheckbox(text="QSFP Module Activate", init_channel=f"{self.channel}.qsfpResetL")
-        self.qsfp_layout.addWidget(self.qsfp_mod_rst_l)
+        # Give reset_l a more intuitive name (active)...
+        self.qsfp_mod_rst_l = IndicatorWithCheckbox(text="QSFP Mod. Active", init_channel=f"{self.channel}.qsfpResetL")
+        self.grid_layout.addWidget(self.qsfp_mod_rst_l, 0, 1)
 
-        self.tx_layout = QHBoxLayout()
-        self.main_layout.addLayout(self.tx_layout)
-        self.rx_layout = QHBoxLayout()
-        self.main_layout.addLayout(self.rx_layout)
-
-        for dir, layout in [["tx", self.tx_layout], ["rx", self.rx_layout]]:
+        for dir, layout, row in [["tx", self.grid_layout, 1], ["rx", self.grid_layout, 2]]:
             reset_done = IndicatorWithLabel(
                 text=f"{dir.upper()} Reset Done", init_channel=f"{self.channel}.{dir}ResetDone"
             )
-            layout.addWidget(reset_done)
+            layout.addWidget(reset_done, row, 0)
             pma_reset_done = IndicatorWithLabel(
                 text=f"{dir.upper()} PMA Reset Done", init_channel=f"{self.channel}.{dir}PmaResetDone"
             )
-            layout.addWidget(pma_reset_done)
+            layout.addWidget(pma_reset_done, row, 1)
             user_clk_active = IndicatorWithLabel(
                 text=f"{dir.upper()} Usr Clk Active", init_channel=f"{self.channel}.{dir}UsrClkActive"
             )
-            layout.addWidget(user_clk_active)
+            layout.addWidget(user_clk_active, row, 2)
             _8b10b_en = IndicatorWithCheckbox(
                 text=f"{dir.upper()} 8B10B Enable", init_channel=f"{self.channel}.{dir}8b10bEn"
             )
-            layout.addWidget(_8b10b_en)
+            layout.addWidget(_8b10b_en, row, 3)
             polarity_invert = IndicatorWithCheckbox(
                 text=f"{dir.upper()} Polarity Invert", init_channel=f"{self.channel}.{dir}Polarity"
             )
-            layout.addWidget(polarity_invert)
+            layout.addWidget(polarity_invert, row, 4)
             # 0 means non-inverted which is the expected value so invert colors
             polarity_invert.indicator.setState0Color(QColor("LawnGreen"))
             polarity_invert.indicator.setState1Color(QColor("Red"))
 
         # Indicators only available for RX
-        self.rx_only_layout = QHBoxLayout()
-        self.main_layout.addLayout(self.rx_only_layout)
         rx_cdr_stable = IndicatorWithLabel(text="RX CDR Stable", init_channel=f"{self.channel}.rxCdrStable")
-        self.rx_only_layout.addWidget(rx_cdr_stable)
+        self.grid_layout.addWidget(rx_cdr_stable, 3, 0)
         rx_disp_error = IndicatorWithLabel(text="RX Parity Good", init_channel=f"{self.channel}.rxDispErr")
         # 0 mans no error so invert colors, also can take values > 1 so assign
         # color to more values
@@ -198,7 +191,7 @@ class EvrGtyControls(PyDMFrame):
         rx_disp_error.indicator.setState1Color(QColor("Red"))
         rx_disp_error.indicator.setState2Color(QColor("Red"))
         rx_disp_error.indicator.setState3Color(QColor("Red"))
-        self.rx_only_layout.addWidget(rx_disp_error)
+        self.grid_layout.addWidget(rx_disp_error, 3, 1)
         rx_dec_error = IndicatorWithLabel(text="RX Decode Good", init_channel=f"{self.channel}.rxDecErr")
         # 0 mans no error so invert colors, also can take values > 1 so assign
         # color to more values
@@ -206,17 +199,17 @@ class EvrGtyControls(PyDMFrame):
         rx_dec_error.indicator.setState1Color(QColor("Red"))
         rx_dec_error.indicator.setState2Color(QColor("Red"))
         rx_dec_error.indicator.setState3Color(QColor("Red"))
-        self.rx_only_layout.addWidget(rx_dec_error)
+        self.grid_layout.addWidget(rx_dec_error, 3, 2)
         rx_byte_aligned = IndicatorWithLabel(text="RX Byte Aligned", init_channel=f"{self.channel}.rxByteIsAligned")
-        self.rx_only_layout.addWidget(rx_byte_aligned)
+        self.grid_layout.addWidget(rx_byte_aligned, 3, 3)
         rx_mcomma_align_en = IndicatorWithCheckbox(
             text="RX - Comma Align En.", init_channel=f"{self.channel}.rxMCommaAlignEn"
         )
-        self.rx_only_layout.addWidget(rx_mcomma_align_en)
+        self.grid_layout.addWidget(rx_mcomma_align_en, 4, 0)
         rx_pcomma_align_en = IndicatorWithCheckbox(
             text="RX + Comma Align En.", init_channel=f"{self.channel}.rxPCommaAlignEn"
         )
-        self.rx_only_layout.addWidget(rx_pcomma_align_en)
+        self.grid_layout.addWidget(rx_pcomma_align_en, 4, 1)
 
 
 class EvrControls(PyDMFrame):
