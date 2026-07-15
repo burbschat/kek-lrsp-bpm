@@ -220,6 +220,11 @@ begin
     comb : process(axilReadMaster, axilWriteMaster, r, eventCodeInt, trgCounts)
         variable v      : RegType;
         variable axilEp : AxiLiteEndPointType;
+
+        constant EVENT_MAP_BASE_C : slv := x"08";
+        constant EVENT_MAP_LAST_C : slv := EVENT_MAP_BASE_C + ((N_TRGS_G - 1) / 4) * 4;
+        constant TRG_COUNT_BASE_C : slv := EVENT_MAP_LAST_C + 4;
+        constant TRG_RESET_BASE_C : slv := TRG_COUNT_BASE_C + N_TRGS_G * 4;
     begin
         -- Latch the current value
         v := r;
@@ -238,21 +243,20 @@ begin
         -- Map the read registers
         -------------------------
 
-        -- TODO: Decide addresses, AGAIN!
         axiSlaveRegister (axilEp, x"00", 0, v.trgsIgnoreIfK);
         axiSlaveRegister (axilEp, x"00", 2, v.trgsIgnoreIfInvalid);
-        axiSlaveRegisterR (axilEp, x"04", 0, eventCodeInt);
+        axiSlaveRegisterR(axilEp, x"04", 0, eventCodeInt);
 
         -- One event code is 8 bit so each trigger line requires an 8 bit register
         -- to set the corresponding event. Place at end of address space as the number
         -- of registers depends on generic and may change.
         for i in 0 to N_TRGS_G - 1 loop
-            -- TODO: Check if integer division works as intended!
-            axiSlaveRegister (axilEp, x"08" + conv_std_logic_vector((i / 4) * 4, 8), (i * 8) mod 32, v.trgsEventMap(i));
-            -- Start at final 32 bit register of event to trigger mapping plus one register (offset by 4)
-            axiSlaveRegisterR (axilEp, x"08" + conv_std_logic_vector(((N_TRGS_G - 1) / 4) * 4, 8) + x"04" + i * 4, 0, trgCounts(i));
-            -- Ok this becomes silly at this point... Just wanted to see how far I can take this. I'm impressed if this works to begin with...
-            axiSlaveRegister (axilEp, x"08" + conv_std_logic_vector(((N_TRGS_G - 1) / 4) * 4, 8) + x"04" + (N_TRGS_G - 1) * 4 + x"04" + (i / 32) * 4, i mod 32, v.trgCountsResets(i));
+            -- Four 8-bit event mappings per 32-bit register
+            axiSlaveRegister (axilEp, EVENT_MAP_BASE_C + (i / 4) * 4, (i * 8) mod 32, v.trgsEventMap(i));
+            -- One 32-bit counter per trigger
+            axiSlaveRegisterR(axilEp, TRG_COUNT_BASE_C + i * 4, 0, trgCounts(i));
+            -- Thirty-two reset bits per 32-bit register
+            axiSlaveRegister (axilEp, TRG_RESET_BASE_C + (i / 32) * 4, i mod 32, v.trgCountsResets(i));
         end loop;
 
         -- Closeout the transaction

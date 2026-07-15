@@ -135,11 +135,16 @@ class EvrTrgs(pr.Device):
             hidden       = False,
         ))
 
+        event_map_base = 0x08
+        event_map_last = event_map_base + ((self.n_trgs - 1) // 4) * 4
+        trg_count_base = event_map_last + 0x04
+        trg_reset_base = trg_count_base + self.n_trgs * 4
+
         for i in range(self.n_trgs):
             self.add(pr.RemoteVariable(
                 name         = f'trg{i}EventCode',
                 description  = f'Event code on which to strobe trigger output nr. {i}',
-                offset       = 0x8 + (i // 4) * 4,
+                offset       = event_map_base + (i // 4) * 4,
                 bitOffset    = (i * 8) % 32,
                 bitSize      = 8,
                 mode         = 'RW',
@@ -150,7 +155,7 @@ class EvrTrgs(pr.Device):
             self.add(pr.RemoteVariable(
                 name         = f'trg{i}Count',
                 description  = f'Number of times trigger {i} has fired',
-                offset       = 0x8 + ((self.n_trgs - 1) // 4) * 4 + 0x4 + i * 4,
+                offset       = trg_count_base + i * 4,
                 bitOffset    = 0,
                 bitSize      = 32,
                 mode         = 'RO',
@@ -167,7 +172,7 @@ class EvrTrgs(pr.Device):
             reset_var = pr.RemoteVariable(
                 name         = f'trg{i}ResetReg',
                 description  = f'Reset trigger {i} counter',
-                offset       = 0x8 + ((self.n_trgs - 1) // 4) * 4 + 0x4 + (self.n_trgs - 1) * 4 + 0x4 + (i // 32) * 4,
+                offset       = trg_reset_base + (i // 32) * 4,
                 # bulkOpEn     = False,
                 bitOffset    = i % 32,
                 bitSize      = 1,
@@ -179,7 +184,7 @@ class EvrTrgs(pr.Device):
             self.add(reset_var)
 
             @self.command(name=f'trg{i}Reset')
-            def foo(reset_var_ref=reset_var):
+            def reset_workaround(reset_var_ref=reset_var):
                 # Workaround for set values ending up sticky...
                 # TODO: Find a better way?
                 reset_var_ref.set(1)
