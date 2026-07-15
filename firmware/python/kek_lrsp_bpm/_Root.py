@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------
 
 import time
+import socket
 
 import rogue
 import rogue.interfaces.stream as stream
@@ -219,7 +220,9 @@ class Root(pr.Root):
         self.dbSdTest >> self.dbSdTestProcessor
 
         # Create and connect XVC on localhost
-        self.xvc = rogue.protocols.xilinx.Xvc(2542)
+        xvc_port = get_free_port(preferred=2542)
+        print(f"Starting XVC server on port {xvc_port}")
+        self.xvc = rogue.protocols.xilinx.Xvc(xvc_port)
         self.addProtocol(self.xvc)
         self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
 
@@ -335,3 +338,17 @@ class Root(pr.Root):
         unhide_recursive(self)
 
     ##################################################################################
+
+def get_free_port(preferred, host="127.0.0.1"):
+    # Try the preferred port first
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, preferred))
+            return preferred
+        except OSError:
+            pass
+
+    # Fall back to an ephemeral port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, 0))
+        return s.getsockname()[1]
