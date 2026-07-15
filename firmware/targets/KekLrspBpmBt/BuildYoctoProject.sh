@@ -18,6 +18,9 @@ txBuffCnt=16
 # Define DMA Buffer Size
 buffSize=0x10000 # 64kB
 
+# U-Boot netboot mode
+netbootMode="best-effort"
+
 ####################################################
 
 function show_help {
@@ -61,4 +64,4 @@ buildPath=$basePath/build/Yocto
 ../../submodules/axi-soc-ultra-plus-core/BuildYoctoProject.sh \
 -p $buildPath -n $targetName -x $xsaPath -h $hwType -T $basePath \
 -l $numLane -d $numDest -t $txBuffCnt -r $rxBuffCnt -s $buffSize \
-$EXTRA_ARGS
+-m $netbootMode $EXTRA_ARGS
