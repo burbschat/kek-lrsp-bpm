@@ -90,7 +90,7 @@ class EvrTrgsControls(PyDMFrame):
             trig_label = QLabel(text=f"Trg. {i}")
             sub_layout.addWidget(trig_label)
 
-            selected_event_code = SpinboxWithLabel(f"Event Code", init_channel=f"{self.channel}.trg{i}EventCode")
+            selected_event_code = SpinboxWithLabel(f"Event Code", init_channel=f"{self.channel}.trg{i}EventCode", precision=0)
             selected_event_code.spinbox.setWriteOnPress(True)
             selected_event_code.spinbox.setShowStepExponent(False)
             selected_event_code.spinbox.setSingleStep(spin_box_step)
