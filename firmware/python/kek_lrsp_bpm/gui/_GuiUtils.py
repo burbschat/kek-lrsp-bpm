@@ -1,4 +1,4 @@
-from pydm.widgets import PyDMCheckbox, PyDMLabel, PyDMMultiStateIndicator, PyDMPushButton, PyDMSpinbox
+from pydm.widgets import PyDMCheckbox, PyDMEnumComboBox, PyDMLabel, PyDMMultiStateIndicator, PyDMSpinbox
 from pydm.widgets.frame import PyDMFrame
 from qtpy import QtCore
 from qtpy.QtGui import QColor
@@ -106,6 +106,24 @@ class SpinboxWithLabel(PyDMFrame):
         self.horizontal_layout.addWidget(self.spinbox)
 
 
+class EnumComboBoxWithLabel(PyDMFrame):
+    def __init__(self, text, parent=None, init_channel=None, spacing=DEFAULT_HOR_SPACING):
+        super().__init__(parent=parent, init_channel=init_channel)
+        self.text = text
+        self.spacing = spacing
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.horizontal_layout = QHBoxLayout()
+        self.horizontal_layout.setContentsMargins(*self.spacing)
+        self.horizontal_layout.setAlignment(QtCore.Qt.AlignLeft)
+        self.setLayout(self.horizontal_layout)
+        self.label = QLabel(self.text)
+        self.horizontal_layout.addWidget(self.label)
+        self.enum_combo_box = PyDMEnumComboBox(init_channel=self.channel)
+        self.horizontal_layout.addWidget(self.enum_combo_box)
+
+
 class FsmStateIndicator(PyDMFrame):
     def __init__(self, text, parent=None, state_val_node=None, state_name_node=None, init_channel=None, spacing=DEFAULT_HOR_SPACING):
         super().__init__(parent=parent, init_channel=init_channel)
@@ -133,5 +151,3 @@ class FsmStateIndicator(PyDMFrame):
         self.horizontal_layout.addWidget(self.label)
         self.value_label = PyDMLabel(init_channel=self.state_name_channel)
         self.horizontal_layout.addWidget(self.value_label)
-
-

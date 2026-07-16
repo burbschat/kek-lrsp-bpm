@@ -4,6 +4,7 @@ from pydm import PyDMChannel
 from pydm.tools import QWidget
 from kek_lrsp_bpm.gui._GuiUtils import (
     SECTION_TITLE_STYLE,
+    EnumComboBoxWithLabel,
     IndicatorWithCheckbox,
     IndicatorWithLabel,
     SpinboxWithLabel,
@@ -60,6 +61,9 @@ class TriggerControls(PyDMFrame):
             "Invert Polarity", init_channel=f"{self.path}.TrigInPolarity"
         )
         self.main_layout.addWidget(self.trig_inv_polarity)
+
+        self.trig_source_combo_box = EnumComboBoxWithLabel(text="Trigger source", init_channel=f"{self.path}.TrigInSelIdx")
+        self.main_layout.addWidget(self.trig_source_combo_box)
 
         self.trig_status = ValueWithLabel(text="Trigger Signal Value", init_channel=f"{self.path}.TrigInSel")
         self.main_layout.addWidget(self.trig_status)
