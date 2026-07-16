@@ -64,7 +64,7 @@ class EvrTrgsControls(PyDMFrame):
         self.num_trigs_channel = PyDMChannel(
             address=f"{self.channel}.NumTrigs",
             value_slot=self.receive_num_trigs,
-            connection_slot=self.receive_num_trigs,
+            connection_slot=self.redraw_ui,
         )
         self.num_trigs_channel.connect()
 

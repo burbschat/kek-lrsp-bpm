@@ -138,7 +138,7 @@ class PoscalcWindowControls(PyDMFrame):
         self.num_windows_channel = PyDMChannel(
             address=f"{self.channel}.NumWindows",
             value_slot=self.receive_num_windows,
-            connection_slot=self.receive_num_windows,
+            connection_slot=self.redraw_ui,
         )
         self.num_windows_channel.connect()
 
