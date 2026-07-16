@@ -121,7 +121,7 @@ class EvrDecoderControls(PyDMFrame):
         self.setup_ui()
 
     def setup_ui(self):
-        self.main_layout = QVBoxLayout()
+        self.main_layout = QHBoxLayout()
         self.main_layout.setAlignment(QtCore.Qt.AlignTop)
         self.setLayout(self.main_layout)
 
