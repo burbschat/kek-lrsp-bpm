@@ -116,6 +116,12 @@ architecture top_level of KekLrspBpmBt is
 
    signal qsfpSysClk : sl;
 
+   -- Internal QSFP signals used to fix inverted RX signal order
+   signal qsfpGtTxIntP : slv(3 downto 0);
+   signal qsfpGtTxIntN : slv(3 downto 0);
+   signal qsfpGtRxIntP : slv(3 downto 0);
+   signal qsfpGtRxIntN : slv(3 downto 0);
+
    signal rstEvrGty : sl;
 
    signal xvcClk156 : sl;
@@ -261,6 +267,16 @@ begin
          IB => qsfpSysClkN,
          O  => qsfpSysClk);
 
+   -- Remap RX lanes to compensate for the reversed QSFP lane routing
+   -- on the RFSoC 4x2 board.
+   qsfpGtTxP <= qsfpGtTxIntP;
+   qsfpGtTxN <= qsfpGtTxIntN;
+   genInvertQsfpRxOrder : for i in 0 to 3 generate
+   begin
+      qsfpGtRxIntP(i) <= qsfpGtRxP(3-i);
+      qsfpGtRxIntN(i) <= qsfpGtRxN(3-i);
+   end generate genInvertQsfpRxOrder;
+
    -- EVR GTY reset
    -- Keep in reset when no qsfp module present (or axil reset asserted)
    rstEvrGty <= axilRst or qsfpModPrsL;
@@ -278,10 +294,10 @@ begin
          stableRst       => '0',
          resetGt         => rstEvrGty,  -- Hard reset
          gtRefClk        => qsfpRefClk,
-         evrGtTxP        => qsfpGtTxP(0),
-         evrGtTxN        => qsfpGtTxN(0),
-         evrGtRxP        => qsfpGtRxP(0),
-         evrGtRxN        => qsfpGtRxN(0),
+         evrGtTxP        => qsfpGtTxIntP(0),
+         evrGtTxN        => qsfpGtTxIntN(0),
+         evrGtRxP        => qsfpGtRxIntP(0),
+         evrGtRxN        => qsfpGtRxIntN(0),
          evrTxResetAsync => '0',
          evrTxResetDone  => open,
          evrTxUsrClk     => open,
