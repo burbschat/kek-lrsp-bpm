@@ -25,11 +25,12 @@ use unisim.vcomponents.all;
 
 entity EvrGty is
     generic (
-        TPD_G           : time    := 1 ns;
-        STABLE_CLK_F_HZ : integer := 156250000;  -- Used to time resets
-
+        TPD_G            : time    := 1 ns;
+        STABLE_CLK_F_HZ  : integer := 156250000;  -- Used to time resets
         AXIL_BASE_ADDR_G : slv(31 downto 0);
-        AXIL_BASE_BOT_G  : natural range 1 to 32
+        AXIL_BASE_BOT_G  : natural range 1 to 32;
+        RX_LANE_IDX_G    : integer := 0;
+        TX_LANE_IDX_G    : integer := 0
         );
     port (
         -- GT Clocking
@@ -38,10 +39,10 @@ entity EvrGty is
         resetGt         : in  sl;
         gtRefClk        : in  sl;
         -- GT Serial IO
-        evrGtTxP        : out sl;
-        evrGtTxN        : out sl;
-        evrGtRxP        : in  sl;
-        evrGtRxN        : in  sl;
+        evrGtTxP        : out slv(3 downto 0);
+        evrGtTxN        : out slv(3 downto 0);
+        evrGtRxP        : in  slv(3 downto 0);
+        evrGtRxN        : in  slv(3 downto 0);
         -- Tx clocking
         evrTxResetAsync : in  sl;
         evrTxResetDone  : out sl;
@@ -235,7 +236,7 @@ architecture mapping of EvrGty is
         dummyData      : slv(7 downto 0);
         dummyDataComma : slv(7 downto 0);
 
-        loopback : slv(2 downto 0);
+        -- loopback : slv(2 downto 0);
 
         axilReadSlave  : AxiLiteReadSlaveType;
         axilWriteSlave : AxiLiteWriteSlaveType;
@@ -286,7 +287,7 @@ architecture mapping of EvrGty is
         dummyData      => x"50",  -- Dummy data to transmit when no comma is transmitted
         dummyDataComma => x"BC",  -- Comma to insert when transmitting dummy data for testing
 
-        loopback => "000",              -- 0b000 is normal operation
+        -- loopback => "000",              -- 0b000 is normal operation
 
         axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
         axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
@@ -380,8 +381,10 @@ begin
 
     U_EvrGtyCoreWrapper : entity work.EvrGtyCoreWrapper
         generic map(
-            TPD_G => TPD_G
-            )
+            TPD_G            => TPD_G,
+            RX_LANE_IDX_G    => RX_LANE_IDX_G,
+            TX_LANE_IDX_G    => TX_LANE_IDX_G,
+            AXIL_BASE_ADDR_G => AXIL_CONFIG_C(AXIL_DRP_INDEX_C).baseAddr)
         port map(
             stableClk => stableClk,  -- The core expects this to be < usrclk but it still seems to work fine with 156.25 which is > userclk
             stableRst => gtReset,
@@ -433,7 +436,7 @@ begin
             txPmaResetDone  => txPmaResetDone,
 
             -- Loopback mode for testing, see UG578
-            loopback => r.loopback,  -- "000" -> normal operation (see UG578)
+            -- loopback => r.loopback,  -- "000" -> normal operation (see UG578)
 
             -- AXI-Lite DRP interface
             axilClk         => axilClk,
@@ -496,8 +499,8 @@ begin
         rxByteIsAligned,
         rxByteRealign,
         rxCommaDet,
-        resetGtSync, 
-        gtRxUserResetSync, 
+        resetGtSync,
+        gtRxUserResetSync,
         gtTxUserResetSync
         ) is
         variable v      : RegType;
@@ -533,9 +536,9 @@ begin
         axiSlaveRegister (axilEp, x"00", 16, v.softRst);  -- Full GTY software reset (write only)
         axiSlaveRegister (axilEp, x"00", 17, v.rxSoftRst);  -- RX only software reset (write only)
         axiSlaveRegister (axilEp, x"00", 18, v.txSoftRst);  -- TX only software reset (write only)
-        axiSlaveRegisterR(axilEp, x"00", 19, resetGtSync); -- Readback of long reset pulse
-        axiSlaveRegisterR(axilEp, x"00", 20, gtRxUserResetSync); -- Readback of long reset pulse
-        axiSlaveRegisterR(axilEp, x"00", 21, gtTxUserResetSync); -- Readback of long reset pulse
+        axiSlaveRegisterR(axilEp, x"00", 19, resetGtSync);  -- Readback of long reset pulse
+        axiSlaveRegisterR(axilEp, x"00", 20, gtRxUserResetSync);  -- Readback of long reset pulse
+        axiSlaveRegisterR(axilEp, x"00", 21, gtTxUserResetSync);  -- Readback of long reset pulse
 
         axiSlaveRegisterR(axilEp, x"04", 0, txResetDone);
         axiSlaveRegisterR(axilEp, x"04", 1, txPmaResetDone);
@@ -563,7 +566,7 @@ begin
         axiSlaveRegister (axilEp, x"10", 8, v.dummyData);  -- Dummy data to transmit for testing
         axiSlaveRegister (axilEp, x"10", 16, v.dummyDataComma);  -- Comma to insert when transmitting dummy data for testing
 
-        axiSlaveRegister (axilEp, x"14", 0, v.loopback);  -- GTY loopback mode
+        -- axiSlaveRegister (axilEp, x"14", 0, v.loopback);  -- GTY loopback mode
 
         -- Closeout the transaction
         axiSlaveDefault(axilEp, v.axilWriteSlave, v.axilReadSlave, AXI_RESP_DECERR_C);

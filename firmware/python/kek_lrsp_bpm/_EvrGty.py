@@ -328,15 +328,15 @@ class EvrGty(pr.Device):
             hidden       = False,
         ))
 
-        self.add(pr.RemoteVariable(
-            name         = 'loopback',
-            description  = 'GTY loopback mode',
-            offset       = 0x14,
-            bitOffset    = 0,
-            bitSize      = 3,
-            mode         = 'RW',
-            hidden       = False,
-        ))
+        # self.add(pr.RemoteVariable(
+        #     name         = 'loopback',
+        #     description  = 'GTY loopback mode',
+        #     offset       = 0x14,
+        #     bitOffset    = 0,
+        #     bitSize      = 3,
+        #     mode         = 'RW',
+        #     hidden       = False,
+        # ))
 
 
         # Offset 0x0001_0000 and above is axil translated DRP interface to GTY transceiver.

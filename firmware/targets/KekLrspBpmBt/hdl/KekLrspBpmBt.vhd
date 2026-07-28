@@ -116,12 +116,6 @@ architecture top_level of KekLrspBpmBt is
 
    signal qsfpSysClk : sl;
 
-   -- Internal QSFP signals used to fix inverted RX signal order
-   signal qsfpGtTxIntP : slv(3 downto 0);
-   signal qsfpGtTxIntN : slv(3 downto 0);
-   signal qsfpGtRxIntP : slv(3 downto 0);
-   signal qsfpGtRxIntN : slv(3 downto 0);
-
    signal rstEvrGty : sl;
 
    signal xvcClk156 : sl;
@@ -267,16 +261,6 @@ begin
          IB => qsfpSysClkN,
          O  => qsfpSysClk);
 
-   -- Remap RX lanes to compensate for the reversed QSFP lane routing
-   -- on the RFSoC 4x2 board.
-   qsfpGtTxP <= qsfpGtTxIntP;
-   qsfpGtTxN <= qsfpGtTxIntN;
-   genInvertQsfpRxOrder : for i in 0 to 3 generate
-   begin
-      qsfpGtRxIntP(i) <= qsfpGtRxP(3-i);
-      qsfpGtRxIntN(i) <= qsfpGtRxN(3-i);
-   end generate genInvertQsfpRxOrder;
-
    -- EVR GTY reset
    -- Keep in reset when no qsfp module present (or axil reset asserted)
    rstEvrGty <= axilRst or qsfpModPrsL;
@@ -286,7 +270,13 @@ begin
          TPD_G            => TPD_G,
          AXIL_BASE_ADDR_G => AXIL_CONFIG_C(GT_INDEX_C).baseAddr,
          AXIL_BASE_BOT_G  => AXIL_CONFIG_C(GT_INDEX_C).addrBits,
-         STABLE_CLK_F_HZ  => 156250000  -- 156.250 MHz
+         STABLE_CLK_F_HZ  => 156250000,  -- 156.250 MHz
+         -- RX signal order reversed on RFSoC 4x2 board! To account for this and have
+         -- TX/RX going to the same lane of the optical transceiver, different lanes
+         -- must be chosen for the GTY transceivers. The data signal pins are fixed
+         -- package pins so we cannot just swap around the input signals to the GTY.
+         RX_LANE_IDX_G    => 3,
+         TX_LANE_IDX_G    => 0
        -- TX_MIRROR_ENABLE_G => false
          )
       port map(
@@ -294,10 +284,10 @@ begin
          stableRst       => '0',
          resetGt         => rstEvrGty,  -- Hard reset
          gtRefClk        => qsfpRefClk,
-         evrGtTxP        => qsfpGtTxIntP(0),
-         evrGtTxN        => qsfpGtTxIntN(0),
-         evrGtRxP        => qsfpGtRxIntP(0),
-         evrGtRxN        => qsfpGtRxIntN(0),
+         evrGtTxP        => qsfpGtTxP,
+         evrGtTxN        => qsfpGtTxN,
+         evrGtRxP        => qsfpGtRxP,
+         evrGtRxN        => qsfpGtRxN,
          evrTxResetAsync => '0',
          evrTxResetDone  => open,
          evrTxUsrClk     => open,
