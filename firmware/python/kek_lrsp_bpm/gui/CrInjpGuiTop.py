@@ -7,6 +7,7 @@ from pydm.widgets.timeplot import PyDMTimePlot
 from pydm.widgets import PyDMPushButton
 from PyQt5.QtWidgets import QSizePolicy
 from PyQt5.QtGui import QColor
+import pyqtgraph as pg
 
 import kek_lrsp_bpm.gui as guiUser
 
@@ -49,13 +50,18 @@ class BpmTimePlots(QFrame):
         self.plot.setTimeSpan(DEFAULT_TIME_SPAN)
         self.plot.setShowLegend(True)
 
+        # Set maximum update rate. Decrease if too much resources used.
+        self.plot.setMaxRedrawRate(25)
+
         self.y_channels = []
 
         lineplot_opts = {
-            "lineStyle": 1,
-            "lineWidth": 1,
-            "symbol": None,
-            "symbolSize": 10,
+            # Must set NoPen object as workaround as a None value is not passed
+            # on in pydm...
+            "lineStyle": pg.QtCore.Qt.NoPen,
+            "symbol": "o",
+            # Did not manage to get filled points but small non-filled ones are fine
+            "symbolSize": 3,
         }
 
         self.curves = {}
