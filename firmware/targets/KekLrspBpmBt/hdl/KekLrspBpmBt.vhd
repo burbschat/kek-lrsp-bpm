@@ -316,8 +316,7 @@ begin
          gtyReady => gtyReady,
          dataK    => dataK,
          dispErr  => dispErr,
-         decErr   => decErr
-         );
+         decErr   => decErr);
 
    --------------
    -- Application

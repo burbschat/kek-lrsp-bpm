@@ -45,7 +45,7 @@ entity Application is
       dspAdc          : in  Slv256Array(3 downto 0);
       dspDac          : out Slv256Array(1 downto 0);
       -- Serial from transceiver
-      usrClk          : in  sl;  -- user clock (rx data interface syncrhonous to this clock)
+      usrClk          : in  sl;  -- User clock (rx data interface syncrhonous to this clock)
       data            : in  slv(15 downto 0);
       gtyReady        : in  sl;  -- Held low until GTY ready (running and aligned)
       dataK           : in  slv(1 downto 0);
@@ -276,8 +276,6 @@ begin
          -- AXI-Stream Interface (axisClk domain)
          axisClk    => dmaClk,
          axisRst    => dmaRst,
-         -- axisMaster => axisMasters(EVR_SD_INDEX_C),
-         -- axisSlave  => axisSlaves(EVR_SD_INDEX_C),
          axisMaster => axisMastersMetamux(METAMUX_META_INDEX_C),
          axisSlave  => axisSlavesMetamux(METAMUX_META_INDEX_C),
 

@@ -15,13 +15,15 @@ use work.AppPkg.all;
 library unisim;
 use unisim.vcomponents.all;
 
+-- Description:
+-- Wrapper around GTY IP core (GT Wizard) to receive serial data stream
+-- transmitted from event master over optical fiber and do the 8b10b
+-- decoding etc. to provide just the serial data contents to downstream
+-- logic.
+
 -- Notes:
--- > Consider adding EVR Decoder as part of this entity and only expose event
---   code/shared bus + generic to enable/disable mirroring. Mirroring should be
---   handeled in this entity, not the decoder.
--- > Keep EVR Decoder as separate entity to allow use with other transceivers.
--- > Could not get the thing to work with external clock network. Perhaps that
---   was the issue. Now try with clock network in the IP core...
+-- > Keep EVR Decoder as separate entity to allow use with other transceivers
+--   as the transceiver details are likely to depend on the used hardware.
 
 entity EvrGty is
     generic (
@@ -133,62 +135,63 @@ architecture mapping of EvrGty is
 
     signal rxCdrStable : sl;
 
-    attribute keep       : string;
-    attribute mark_debug : string;
-
-    attribute keep of qpll1Locked : signal is "true";
-    attribute keep of resetGtSync : signal is "true";
-    attribute keep of gtReset     : signal is "true";
-
-    attribute keep of rxData          : signal is "true";
-    attribute keep of rxDataK         : signal is "true";
-    attribute keep of rxUsrClk        : signal is "true";
-    attribute keep of rxResetDone     : signal is "true";
-    attribute keep of rxDispErr       : signal is "true";
-    attribute keep of rxDecErr        : signal is "true";
-    attribute keep of rxByteIsAligned : signal is "true";
-    attribute keep of rxByteRealign   : signal is "true";
-    attribute keep of rxCommaDet      : signal is "true";
-    attribute keep of rxPmaResetDone  : signal is "true";
-
-    attribute keep of rxCdrStable : signal is "true";
-
-    attribute keep of txData         : signal is "true";
-    attribute keep of txDataK        : signal is "true";
-    attribute keep of txUsrClk       : signal is "true";
-    attribute keep of txResetDone    : signal is "true";
-    attribute keep of txPmaResetDone : signal is "true";
-
-    attribute keep of txUsrClkActive : signal is "true";
-    attribute keep of rxUsrClkActive : signal is "true";
-
-    attribute mark_debug of qpll1Locked : signal is "true";
-    attribute mark_debug of resetGtSync : signal is "true";
-    attribute mark_debug of gtReset     : signal is "true";
-
-    attribute mark_debug of rxData          : signal is "true";
-    attribute mark_debug of rxDataK         : signal is "true";
-    attribute mark_debug of rxUsrClk        : signal is "true";
-    -- attribute mark_debug of rxUsrClkMmcmLocked : signal is "true";
-    attribute mark_debug of rxResetDone     : signal is "true";
-    attribute mark_debug of rxDispErr       : signal is "true";
-    attribute mark_debug of rxDecErr        : signal is "true";
-    attribute mark_debug of rxByteIsAligned : signal is "true";
-    attribute mark_debug of rxByteRealign   : signal is "true";
-    attribute mark_debug of rxCommaDet      : signal is "true";
-    attribute mark_debug of rxPmaResetDone  : signal is "true";
-
-    attribute mark_debug of rxCdrStable : signal is "true";
-
-    attribute mark_debug of txData         : signal is "true";
-    attribute mark_debug of txDataK        : signal is "true";
-    attribute mark_debug of txUsrClk       : signal is "true";
-    -- attribute mark_debug of txUsrClkMmcmLocked : signal is "true";
-    attribute mark_debug of txResetDone    : signal is "true";
-    attribute mark_debug of txPmaResetDone : signal is "true";
-
-    attribute mark_debug of txUsrClkActive : signal is "true";
-    attribute mark_debug of rxUsrClkActive : signal is "true";
+    -- Enable for ILA debugging
+    -- attribute keep       : string;
+    -- attribute mark_debug : string;
+    --
+    -- attribute keep of qpll1Locked : signal is "true";
+    -- attribute keep of resetGtSync : signal is "true";
+    -- attribute keep of gtReset     : signal is "true";
+    --
+    -- attribute keep of rxData          : signal is "true";
+    -- attribute keep of rxDataK         : signal is "true";
+    -- attribute keep of rxUsrClk        : signal is "true";
+    -- attribute keep of rxResetDone     : signal is "true";
+    -- attribute keep of rxDispErr       : signal is "true";
+    -- attribute keep of rxDecErr        : signal is "true";
+    -- attribute keep of rxByteIsAligned : signal is "true";
+    -- attribute keep of rxByteRealign   : signal is "true";
+    -- attribute keep of rxCommaDet      : signal is "true";
+    -- attribute keep of rxPmaResetDone  : signal is "true";
+    --
+    -- attribute keep of rxCdrStable : signal is "true";
+    --
+    -- attribute keep of txData         : signal is "true";
+    -- attribute keep of txDataK        : signal is "true";
+    -- attribute keep of txUsrClk       : signal is "true";
+    -- attribute keep of txResetDone    : signal is "true";
+    -- attribute keep of txPmaResetDone : signal is "true";
+    --
+    -- attribute keep of txUsrClkActive : signal is "true";
+    -- attribute keep of rxUsrClkActive : signal is "true";
+    --
+    -- attribute mark_debug of qpll1Locked : signal is "true";
+    -- attribute mark_debug of resetGtSync : signal is "true";
+    -- attribute mark_debug of gtReset     : signal is "true";
+    --
+    -- attribute mark_debug of rxData          : signal is "true";
+    -- attribute mark_debug of rxDataK         : signal is "true";
+    -- attribute mark_debug of rxUsrClk        : signal is "true";
+    -- -- attribute mark_debug of rxUsrClkMmcmLocked : signal is "true";
+    -- attribute mark_debug of rxResetDone     : signal is "true";
+    -- attribute mark_debug of rxDispErr       : signal is "true";
+    -- attribute mark_debug of rxDecErr        : signal is "true";
+    -- attribute mark_debug of rxByteIsAligned : signal is "true";
+    -- attribute mark_debug of rxByteRealign   : signal is "true";
+    -- attribute mark_debug of rxCommaDet      : signal is "true";
+    -- attribute mark_debug of rxPmaResetDone  : signal is "true";
+    --
+    -- attribute mark_debug of rxCdrStable : signal is "true";
+    --
+    -- attribute mark_debug of txData         : signal is "true";
+    -- attribute mark_debug of txDataK        : signal is "true";
+    -- attribute mark_debug of txUsrClk       : signal is "true";
+    -- -- attribute mark_debug of txUsrClkMmcmLocked : signal is "true";
+    -- attribute mark_debug of txResetDone    : signal is "true";
+    -- attribute mark_debug of txPmaResetDone : signal is "true";
+    --
+    -- attribute mark_debug of txUsrClkActive : signal is "true";
+    -- attribute mark_debug of rxUsrClkActive : signal is "true";
 
     type EvrTxModeType is (
         RX_MIRROR,  -- Mirror rx 'as is' to tx (including commas)
@@ -199,8 +202,6 @@ architecture mapping of EvrGty is
     type RegType is record
         qsfpModSelL      : sl;          -- Pull low for access over i2c!
         qsfpResetL       : sl;
-        -- qsfpModPrsL : sl;
-        -- qsfpIntL    : sl;
         qsfpLpMode       : sl;
         ignoreQsfpModPrs : sl;
 
@@ -209,24 +210,13 @@ architecture mapping of EvrGty is
         rxSoftRst : sl;
         txSoftRst : sl;
 
-        -- txResetDone    : sl;
-        -- txPmaResetDone : sl;
-        -- txUsrClkActive : sl;
+        -- Reset related signals
         tx8b10bEn  : sl;
         txPolarity : sl;
 
-        -- rxResetDone    : sl;
-        -- rxPmaResetDone : sl;
-        -- rxUsrClkActive : sl;
         rx8b10bEn  : sl;
         rxPolarity : sl;
 
-        -- rxCdrStable     : sl;
-        -- rxDispErr       : slv(1 downto 0);
-        -- rxDecErr        : slv(1 downto 0);
-        -- rxByteIsAligned : sl;
-        -- rxByteRealign   : sl;
-        -- rxCommaDet      : sl;
         rxCommaDetEn    : sl;
         rxMCommaAlignEn : sl;
         rxPCommaAlignEn : sl;
@@ -249,8 +239,6 @@ architecture mapping of EvrGty is
         -- write to/read from??? Not sure what is going on there...
         qsfpModSelL      => '0',        -- Default is selected!
         qsfpResetL       => '1',
-        -- qsfpModPrsL => '0',
-        -- qsfpIntL    => '0',
         qsfpLpMode       => '0',        -- Default is NOT low power
         ignoreQsfpModPrs => '0',
 
@@ -260,24 +248,12 @@ architecture mapping of EvrGty is
         txSoftRst => '0',
 
         -- Reset related signals
-        -- txResetDone    => '0',
-        -- txPmaResetDone => '0',
-        -- txUsrClkActive => '0',
         tx8b10bEn  => '1',
         txPolarity => '0',  -- Set 1 to invert polarity (diff. pair swap)
 
-        -- rxResetDone    => '0',
-        -- rxPmaResetDone => '0',
-        -- rxUsrClkActive => '0',
         rx8b10bEn  => '1',
         rxPolarity => '0',  -- Set 1 to invert polarity (diff. pair swap)
 
-        -- rxCdrStable     => '0',
-        -- rxDispErr       => (others => '0'),
-        -- rxDecErr        => (others => '0'),
-        -- rxByteIsAligned => '0',
-        -- rxByteRealign   => '0',
-        -- rxCommaDet      => '0',
         rxCommaDetEn    => '1',
         rxMCommaAlignEn => '1',
         rxPCommaAlignEn => '1',

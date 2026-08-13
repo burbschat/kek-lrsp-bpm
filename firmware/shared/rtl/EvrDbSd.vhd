@@ -15,6 +15,22 @@ use axi_soc_ultra_plus_core.AxiSocUltraPlusPkg.all;
 library work;
 use work.AppPkg.all;
 
+-- Description:
+-- Handle decoding for the 'distributed bus' (trigger signals distributed
+-- every cycle) and 'shared data' (periodically transmitted data buffer).
+-- The former is output as signals (width=8). The latter is stored in a
+-- frame buffer which allows for the most recent version of the data buffer
+-- to be provided on a AXI-Stream interface at any time (the buffer
+-- implementation actually ensures that this is possible at *any time* without
+-- any dead time, i.e. a transmission should never be missed).
+
+-- Notes:
+-- > There should be a 16 bit (split into lower and upper byte, i.e. two
+--   transmissions) after the SD_END_K is received. However, the manual does not
+--   mention what kind of checksum that would be. I guess one could try to infer
+--   it from the data... TODO: Try that and if successful implement checksum
+--   check. Currently the checksum is just ignored.
+
 entity EvrDbSd is
     generic(
         TPD_G              : time            := 1 ns;
@@ -153,7 +169,7 @@ begin
             DATA_BYTES_G        => 1,   -- 8 bit per transmission
             RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
             SAFE_BUFFS_G        => true,
-            -- AXI Stream Configurations
+            -- AXI-Stream Configurations
             FIFO_MEMORY_TYPE_G  => "block",
             FIFO_ADDR_WIDTH_G   => 9,   -- TODO: Adjust?
             GEN_SYNC_FIFO_G     => false,
@@ -249,15 +265,15 @@ begin
                 end case;
 
                 -- Data is either DB or SD but DB arrives also when there is no
-                -- SD transmission ongoing. TODO: Maybe all is DB when there is
-                -- no SD transmission ongoing??? A but at least from ILA debug
-                -- it seems like every second two bytes are 0 unless
-                -- transmission ongoing so probably not?
+                -- SD transmission ongoing. TODO(?): Maybe all is DB when there
+                -- is no SD transmission ongoing??? A but at least from ILA
+                -- debug it seems like every second two bytes are 0 unless
+                -- transmission ongoing so probably not.
                 if not (v.isSd = '1') then
                     v.distrBus := data;
                 end if;
             else
-                -- if SD disabled, all transmissions are DB and we don't have
+                -- If SD disabled, all transmissions are DB and we don't have
                 -- to care about alignment or states
                 v.distrBus := data;
             end if;

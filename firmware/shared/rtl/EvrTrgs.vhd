@@ -10,6 +10,17 @@ use surf.AxiLitePkg.all;
 library work;
 use work.AppPkg.all;
 
+-- Description:
+-- Map the trigger ids distributed over the serial link from the event master
+-- to trigger signals (output from this module). Which trigger id is mapped to
+-- which signal is settable through the AXI-Lite registers. Additionally
+-- a trigger count for each trigger signal (after the id to signal mapping) is
+-- available (and can be reset by a register write).
+
+-- Notes:
+-- > Depending on the value of N_TRGS_G a varying number of registers are
+--   generated. The user must ensure that the address range assigned to
+--   this module is sufficiently large to fit them.
 
 entity EvrTrgs is
     generic (

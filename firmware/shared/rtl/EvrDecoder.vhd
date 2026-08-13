@@ -11,13 +11,14 @@ use surf.AxiLitePkg.all;
 library work;
 use work.AppPkg.all;
 
--- Consume (rx) event system data, all syncrhonous to usr clock and extract
+-- Description:
+-- Consume (rx) event system data, all synchronous to usr clock and extract
 -- event code/shared bus.
--- TODO:
--- - How to output triggers? Could have
---    - some fixed, named outputs and perhaps a register that sets the map
---      between those/event codes? + raw event code? I guess that makes sense...
--- - Perhaps add counters for each trigger line?
+
+-- Notes:
+-- > Consider to make independent of the surf register interface and pass
+--   required signals in a record type to a separate 'EvrReg' entity which
+--   may or may not be used for better portability.
 
 entity EvrDecoder is
     generic (
@@ -27,7 +28,7 @@ entity EvrDecoder is
         AXIL_BASE_ADDR_G : slv(31 downto 0)
         );
     port (
-        clk     : in sl;  -- user clock (rx data interface syncrhonous to this clock)
+        clk     : in sl;  -- User clock (rx data interface synchronous to this clock)
         rst     : in sl;
         data    : in slv(15 downto 0);
         dataK   : in slv(1 downto 0);
@@ -38,8 +39,7 @@ entity EvrDecoder is
         -- software, not firmware. So just use numbers here.
         trgs : out slv(N_TRGS_G - 1 downto 0);
 
-        -- Trigger input to trigger dump of most recent shared data via AXI
-        -- stream interface
+        -- Trigger input to trigger dump of most recent shared data via AXI-stream interface
         sdReadoutTrig : in sl;
 
         -- Outputs
@@ -116,7 +116,7 @@ begin
             dataK     => dataK(EVENT_CODE_BITS_IDX_C),
             dataValid => not (dispErr(EVENT_CODE_BITS_IDX_C) or decErr(EVENT_CODE_BITS_IDX_C)),
 
-            -- Axi-lite interface
+            -- AXI-lite interface
             axilClk         => axilClk,
             axilRst         => axilRst,
             axilReadMaster  => axilReadMasters(TRGS_INDEX_C),
@@ -144,7 +144,7 @@ begin
             dataValid => not (dispErr(DBSD_BITS_IDX_C) or decErr(DBSD_BITS_IDX_C)),
             extTrig   => sdReadoutTrig,
 
-            -- Axi-lite interface
+            -- AXI-lite interface
             axilClk         => axilClk,
             axilRst         => axilRst,
             axilReadMaster  => axilReadMasters(DBSD_INDEX_C),
