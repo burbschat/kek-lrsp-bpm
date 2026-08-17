@@ -15,8 +15,8 @@ axi_soc_ultra_plus_core.files = [
 
 top.files = [
     "./targets/KekLrspBpmBt/hdl/KekLrspBpmBt.vhd",
-    "./shared/rtl/*.vhd",
-    "./shared/tb/*.vhd"
+    "./shared/**/rtl/*.vhd",
+    "./shared/**/tb/*.vhd"
 ]
 
 unisim.files = [
