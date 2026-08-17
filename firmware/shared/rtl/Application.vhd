@@ -38,12 +38,19 @@ entity Application is
       dmaIbMaster     : out AxiStreamMasterType;
       dmaIbSlave      : in  AxiStreamSlaveType;
       -- Trigger Inputs
-      trigsIn         :     slv(1 downto 0);
+      trigsIn         : in  slv(1 downto 0);
       -- ADC/DAC Interface (dspClk domain)
       dspClk          : in  sl;
       dspRst          : in  sl;
       dspAdc          : in  Slv256Array(3 downto 0);
       dspDac          : out Slv256Array(1 downto 0);
+      -- Serial from transceiver
+      usrClk          : in  sl;  -- User clock (rx data interface syncrhonous to this clock)
+      data            : in  slv(15 downto 0);
+      gtyReady        : in  sl;  -- Held low until GTY ready (running and aligned)
+      dataK           : in  slv(1 downto 0);
+      dispErr         : in  slv(1 downto 0);
+      decErr          : in  slv(1 downto 0);
       -- AXI-Lite Interface (axilClk domain)
       axilClk         : in  sl;
       axilRst         : in  sl;
@@ -64,7 +71,19 @@ architecture mapping of Application is
    constant RING_INDEX_C         : natural := 1;  -- Used for axil and axis!
    constant DAC_SIG_INDEX_C      : natural := 2;
    constant READOUT_CTRL_INDEX_C : natural := 3;
-   constant NUM_AXIL_MASTERS_C   : natural := 4;
+   constant EVR_DEC_REG_INDEX_C  : natural := 4;
+   constant NUM_AXIL_MASTERS_C   : natural := 5;
+
+   constant NUM_AXIS_SLAVES_C : natural := 2;
+   -- For EVR metadata in separate stream for testing
+   -- constant NUM_AXIS_SLAVES_C : natural := 3;
+   -- constant EVR_SD_INDEX_C : natural := 2;
+
+   constant AXIS_RING_TDEST_C : slv(7 downto 0) := x"04";
+
+   constant METAMUX_NUM_AXIS_SLAVES_C : natural := 2;  -- Data stream (ring buffer) and meatdata stream
+   constant METAMUX_META_INDEX_C      : natural := 0;
+   constant METAMUX_RING_INDEX_C      : natural := 1;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, AXIL_BASE_ADDR_G, 28, 24);
 
@@ -74,8 +93,19 @@ architecture mapping of Application is
    signal axilWriteSlaves  : AxiLiteWriteSlaveArray(NUM_AXIL_MASTERS_C-1 downto 0) := (others => AXI_LITE_WRITE_SLAVE_EMPTY_DECERR_C);
 
    -- Axi stream for ring buffers
-   signal axisMasters : AxiStreamMasterArray(1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
-   signal axisSlaves  : AxiStreamSlaveArray(1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+   signal axisMasters : AxiStreamMasterArray(NUM_AXIS_SLAVES_C-1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
+   signal axisSlaves  : AxiStreamSlaveArray(NUM_AXIS_SLAVES_C-1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+
+   -- Axi stream signals for merging with metadata stream
+   signal axisMastersMetamux : AxiStreamMasterArray(METAMUX_NUM_AXIS_SLAVES_C-1 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
+   signal axisSlavesMetamux  : AxiStreamSlaveArray(METAMUX_NUM_AXIS_SLAVES_C-1 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
+   signal axisMasterMetamux  : AxiStreamMasterType                                        := AXI_STREAM_MASTER_INIT_C;
+   signal axisSlaveMetamux   : AxiStreamSlaveType                                         := AXI_STREAM_SLAVE_FORCE_C;
+
+   -- Stick the batched stream into another mux to set tdest which gets stripped
+   -- by the batcher (only one stream but must be array type for the mux).
+   signal axisMastersNodest : AxiStreamMasterArray(0 downto 0) := (others => AXI_STREAM_MASTER_INIT_C);
+   signal axisSlavesNodest  : AxiStreamSlaveArray(0 downto 0)  := (others => AXI_STREAM_SLAVE_FORCE_C);
 
    signal adc      : Slv256Array(3 downto 0) := (others => (others => '0'));
    signal dac      : Slv256Array(1 downto 0) := (others => (others => '0'));
@@ -84,6 +114,9 @@ architecture mapping of Application is
    signal adcInterleaved : slv(NUM_ADC_CH_C*256 - 1 downto 0) := (others => '0');
 
    signal ringBufTrig : sl;
+
+   constant EVR_N_TRGS_C : integer := 1;
+   signal evrTrgs        : slv(EVR_N_TRGS_C - 1 downto 0);
 
 begin
 
@@ -117,11 +150,11 @@ begin
          mAxiReadMasters     => axilReadMasters,
          mAxiReadSlaves      => axilReadSlaves);
 
-   -- Mux axi streams from both ring buffers
+   -- Mux AXI streams from both ring buffers
    U_Mux : entity surf.AxiStreamMux
       generic map (
          TPD_G         => TPD_G,
-         NUM_SLAVES_G  => 2,
+         NUM_SLAVES_G  => NUM_AXIS_SLAVES_C,
          MODE_G        => "PASSTHROUGH",
          PIPE_STAGES_G => 1)
       port map (
@@ -135,18 +168,137 @@ begin
          mAxisMaster  => dmaIbMaster,
          mAxisSlave   => dmaIbSlave);
 
+
+   -- Mux AXI streams from ring buffer (not live one) with metadata to create
+   -- input stream for the batcher. No reason to put TDEST here as the batcher
+   -- strips them anyways.
+   U_MuxMeta : entity surf.AxiStreamMux
+      generic map (
+         TPD_G         => TPD_G,
+         NUM_SLAVES_G  => METAMUX_NUM_AXIS_SLAVES_C,
+         MODE_G        => "PASSTHROUGH",
+         PIPE_STAGES_G => 1)
+      port map (
+         -- Clock and reset
+         axisClk      => dmaClk,
+         axisRst      => dmaRst,
+         -- Slaves
+         sAxisMasters => axisMastersMetamux,
+         sAxisSlaves  => axisSlavesMetamux,
+         -- Master
+         mAxisMaster  => axisMasterMetamux,
+         mAxisSlave   => axisSlaveMetamux);
+
+   -- Use mux simply to stick on the correct TDEST lost during batching.
+   -- Is there a smarter way to do this? Driving the tdest signal directly should
+   -- work but then one has to tear apart the records...
+   -- Must use separate mux as the existing one shall remain in PASSTHROUGH to keep
+   -- tdest from the other (live) buffers.
+   -- Maybe mux is fine, perhaps I want to add another batched stream later? (maybe not)
+   U_MuxMetaSetDest : entity surf.AxiStreamMux
+      generic map (
+         TPD_G          => TPD_G,
+         NUM_SLAVES_G   => 1,
+         MODE_G         => "ROUTED",
+         TDEST_ROUTES_G => (
+            0           => AXIS_RING_TDEST_C
+            ),
+         PIPE_STAGES_G  => 1)
+      port map (
+         -- Clock and reset
+         axisClk      => dmaClk,
+         axisRst      => dmaRst,
+         -- Slaves
+         sAxisMasters => axisMastersNodest,
+         sAxisSlaves  => axisSlavesNodest,
+         -- Master
+         mAxisMaster  => axisMasters(RING_INDEX_C),
+         mAxisSlave   => axisSlaves(RING_INDEX_C));
+
+   -- Consider testing with AxiStreamBatcherAxil to mess with the settings if
+   -- the below does not work.
+   -- TODO: Just use the axil version because why not.
+   AxiStreamBatcher_inst : entity surf.AxiStreamBatcher
+      generic map(
+         TPD_G                        => TPD_G,
+         VERSION_G                    => 2,
+         MAX_NUMBER_SUB_FRAMES_G      => 2,  -- Only need header + one data frame
+         -- Must fit full buffer (if address width=8: 2**8 * 16 samples/cycle * 4
+         -- channels * 2 byte/sample = 32768) + maximum shared data width = 2048
+         -- byte.
+         SUPER_FRAME_BYTE_THRESHOLD_G => 65536,  -- 2**16 suffices if address width is 8
+         -- Might want to make this longer depending on whether shot ID is distributed
+         -- before or after each shot.
+         -- If DBSD frame buffer is empty, it will ignore a trigger. In this case
+         -- data is held off by this count, so probably want to keep this small.
+         -- Alternative would be to configure the buffer to always dump it
+         -- complete contents. TODO: Requires PR to upstream surf.
+         MAX_CLK_GAP_G                => 32,
+         AXIS_CONFIG_G                => DMA_AXIS_CONFIG_C
+         )
+      port map(
+         axisClk     => dmaClk,
+         axisRst     => dmaRst,
+         forceTerm   => '0',  -- Could use this to signal that a frame is complete and transmission should be terminated
+         idle        => open,           -- Indicates if in idle
+         -- Slave slot (stream input)
+         sAxisMaster => axisMasterMetamux,
+         sAxisSlave  => axisSlaveMetamux,
+         -- Master slot (stream output)
+         mAxisMaster => axisMastersNodest(0),
+         mAxisSlave  => axisSlavesNodest(0)
+         );
+
+
+   -- Event receiver decoding
+   U_EvrDecoder : entity work.EvrDecoder
+      generic map(
+         TPD_G            => TPD_G,
+         SYNTH_MODE_G     => "xpm",
+         N_TRGS_G         => EVR_N_TRGS_C,
+         AXIL_BASE_ADDR_G => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr
+         )
+      port map(
+         -- Serial data input
+         clk     => usrClk,
+         data    => data,
+         dataK   => dataK,
+         dispErr => dispErr,
+         decErr  => decErr,
+         rst     => not gtyReady,  -- Keep in reset until data valid (forces reset while GTY resetting)
+
+         -- Trigger outputs
+         trgs => evrTrgs,
+
+         -- Trigger to readout most recent received shared data via AXI stream
+         sdReadoutTrig => ringBufTrig,
+
+         -- AXI-Stream Interface (axisClk domain)
+         axisClk    => dmaClk,
+         axisRst    => dmaRst,
+         axisMaster => axisMastersMetamux(METAMUX_META_INDEX_C),
+         axisSlave  => axisSlavesMetamux(METAMUX_META_INDEX_C),
+
+         -- AXI-Lite register interface
+         axilClk         => axilClk,
+         axilRst         => axilRst,
+         axilReadMaster  => axilReadMasters(EVR_DEC_REG_INDEX_C),
+         axilReadSlave   => axilReadSlaves(EVR_DEC_REG_INDEX_C),
+         axilWriteMaster => axilWriteMasters(EVR_DEC_REG_INDEX_C),
+         axilWriteSlave  => axilWriteSlaves(EVR_DEC_REG_INDEX_C)
+         );
+
+   -- ADC trigger and readout control
    U_ReadoutCtrl : entity work.ReadoutCtrl
-      generic map(TPD_G => TPD_G)
+      generic map(TPD_G       => TPD_G,
+                  NUM_TRIGS_G => 3)
       port map(
          -- Trigger Ports
-         trigsIn         => trigsIn,
-         ringBufTrigOut  => ringBufTrig,
+         trigsIn         => evrTrgs(0) & trigsIn,
+         trigOut         => ringBufTrig,
          -- DSP Interface
          dspClk          => dspClk,
          dspRst          => dspRst,
-         -- No way to use those for now. Could also use delays directly in RFDC?
-         -- fineDelay       => '0',
-         -- coarseDelay     => '0',
          -- AXI-Lite Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,
@@ -169,6 +321,7 @@ begin
       end loop;
    end process interleave_map;
 
+   -- TODO: IMO better to just use a AppRingBufferEngine directly.
    U_AppRingBuffer : entity axi_soc_ultra_plus_core.AppRingBuffer
       generic map (
          TPD_G                  => TPD_G,
@@ -181,15 +334,15 @@ begin
          AXIL_BASE_ADDR_G       => AXIL_CONFIG_C(RING_INDEX_C).baseAddr,
          -- Ensure no overlap between routes for different buffers!
          ADC_TDEST_ROUTES_G     => (
-            0                   => x"04",
+            0                   => AXIS_RING_TDEST_C,
             others              => x"FF")
          )
       port map (
          -- DMA Interface (dmaClk domain)
          dmaClk          => dmaClk,
          dmaRst          => dmaRst,
-         dmaIbMaster     => axisMasters(RING_INDEX_C),
-         dmaIbSlave      => axisSlaves(RING_INDEX_C),
+         dmaIbMaster     => axisMastersMetamux(METAMUX_RING_INDEX_C),
+         dmaIbSlave      => axisSlavesMetamux(METAMUX_RING_INDEX_C),
          -- ADC/DAC Interface (dspClk domain)
          dspClk          => dspClk,
          dspRst          => dspRst,

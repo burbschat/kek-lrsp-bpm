@@ -18,6 +18,7 @@ import importlib
 import rogue
 import pyrogue
 import axi_soc_ultra_plus_core.rfsoc_utility.pydm
+from serverUtils import LMK_CONFIGS, get_injplike_pvmap, get_sr_lmkconfig
 
 if __name__ == "__main__":
 
@@ -62,47 +63,62 @@ if __name__ == "__main__":
         help     = "Sets the default YAML configuration file to be loaded at the root.start()",
     )
 
-    # TODO: Not sure how close the RFDC PLL config frequencies should be to the
-    # actual sample rate. If problems with e.g. spurs are encountered, perhaps
-    # try adjusting the RFDC IP cores config. However I do not believe that
-    # this matters much as all the dividers etc. in the PLLs should be the
-    # same. Or does it?
-    lmk_configs = {
-        "default": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt", "out_f_MHz": 500},
-        # Below are fractional PLL configs which make it pretty much impossible
-        # to configure for use of both the internal 10MHz oscillator and
-        # external clock signal. The former is therefore not usable with those.
-        # This is required as the LMK on the RFSoC4x2 does not allow to simply
-        # bypass the PLL and use the clock signal directly.
-        "skbrf": {"file": "config/lmk/HexRegisterValues_CLKin0-508MHz89Approx.txt", "out_f_MHz": 508.89},
-        "linacrf": {"file": "config/lmk/HexRegisterValues_CLKin0-114MHz24Approx.txt", "out_f_MHz": 514.08},
-        "linacrf_half": {"file": "config/lmk/HexRegisterValues_CLKin0-57MHz12Approx.txt", "out_f_MHz": 514.08},
-        "oc520": {"file": "config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz_OC520MHz.txt", "out_f_MHz": 520},
-    }
+    parser.add_argument(
+        "--epicsPrefix",
+        type     = str,
+        required = False,
+        default  = None,   # IOC is only initialized when value is other than None
+        help     = "Prefix for EPICS CA IOC PVs. If not specified IOC will be disabled.",
+    )
+
+    parser.add_argument(
+        "--zmqLocalOnly",
+        type     = argBool,
+        required = False,
+        default  = True,
+        help     = "Set False to allow ZMQ access from other than localhost.",
+    )
 
     parser.add_argument(
         "--pllConfig",
         type     = str,
         required = False,
-        choices  = list(lmk_configs.keys()),
+        choices  = list(LMK_CONFIGS.keys()),
         default  = "default",
-        help     = f"Select one of available PLL configs: {list(lmk_configs.keys())}",
+        help     = f"Select one of available PLL configs: {list(LMK_CONFIGS.keys())}",
     )
 
     parser.add_argument(
         "--guiType",
         type     = str,
         required = False,
-        default  = 'PyDM',
+        default  = "PyDM",
         help     = "Sets the GUI type (PyDM or None)",
+    )
+
+    parser.add_argument(
+        "--bpmType",
+        type     = str,
+        required = True,  # Force explicit delcaration here!
+        default  = "bt",
+        choices  = ["bt", "injp"],
+        help     = "Sets the bpm type (bt or injp)",
     )
 
     parser.add_argument(
         "--zmqSrvPort",
         type     = int,
         required = False,
-        default  = 9099,
+        default  = 0,
         help     = "Zeromq server port (set to zero if you want it dynamic)",
+    )
+
+    parser.add_argument(
+        "--nWindows",
+        required = False,
+        type     = int,
+        default  = None,
+        help     = "Number of windows. Set to None to use the default value for given BPM type.",
     )
 
     # Get the arguments
@@ -111,24 +127,41 @@ if __name__ == "__main__":
     #################################################################
 
     print(f"Using the '{args.pllConfig}' PLL config.")
-    lmk_config_file = lmk_configs[args.pllConfig]["file"]
-    # ADC/DAC(?) sampling rate is reference clock times eight and thus depends
-    # on PLL config! Multiplier defined in RFDC IP core config's PLL settings.
-    refclock_freq = lmk_configs[args.pllConfig]["out_f_MHz"] * 1e6  # in Hz
-    # Multiplication factor must match RfDC IP core config!
-    # With 10 + lock on 509 we are thus actually overclocking (a little bit)
-    sampleRate = refclock_freq * 10  # in Hz
+
+    lmk_config_file, sampleRate = get_sr_lmkconfig(args.pllConfig)
 
     print(f"ADC sample rate is: {sampleRate/1e9} GHz")
 
+    # Set number of windows. For BT number of windows may depend on the readout
+    # location, so allow manual setting using command line argument.
+    nWindows = 1  # Default: 1 window
+    if args.bpmType == "injp":
+        nWindows = 2
+    elif args.bpmType == "bt":
+        nWindows = 5
+
+    # nWindows takes precedence if set.
+    if args.nWindows is not None:
+        nWindows = args.nWindows
+        print(f"Set {nWindows} windows according to passed command line argument value.")
+    else:
+        print(f"Inferred {nWindows} windows for BPM type {args.bpmType}.")
+
     with kek_lrsp_bpm.Root(
-        ip          = args.ip,
-        pollEn      = args.pollEn,
-        initRead    = args.initRead,
-        defaultFile = args.defaultFile,
-        lmkConfig   = lmk_config_file,
-        sampleRate  = sampleRate,
-        zmqSrvPort  = args.zmqSrvPort,
+        ip              = args.ip,
+        bpmType         = args.bpmType,
+        hardDisableFit  = args.bpmType == "bt",  # BT only requires poly
+        hardDisablePoly = False,
+        pollEn          = args.pollEn,
+        initRead        = args.initRead,
+        defaultFile     = args.defaultFile,
+        lmkConfig       = lmk_config_file,
+        sampleRate      = sampleRate,
+        zmqSrvPort      = args.zmqSrvPort,
+        nWindows        = nWindows,
+        epicsPrefix     = args.epicsPrefix,
+        getPvMap        = get_injplike_pvmap,
+        zmqLocalOnly    = args.zmqLocalOnly,
     ) as root:
 
         ######################

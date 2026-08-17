@@ -26,6 +26,9 @@ use work.AppPkg.all;
 library axi_soc_ultra_plus_core;
 use axi_soc_ultra_plus_core.AxiSocUltraPlusPkg.all;
 
+library unisim;
+use unisim.vcomponents.all;
+
 entity KekLrspBpmBt is
    generic (
       TPD_G        : time := 1 ns;
@@ -53,7 +56,23 @@ entity KekLrspBpmBt is
       plSysRefN   : in    sl;
       -- SYSMON Ports
       vPIn        : in    sl;
-      vNIn        : in    sl);
+      vNIn        : in    sl;
+      -- QSFP ports
+      qsfpRefClkP : in    sl;           -- On dedicated GT ref clock pins
+      qsfpRefClkN : in    sl;
+      qsfpSysClkP : in    sl;           -- On ordinary clock pins
+      qsfpSysClkN : in    sl;
+      qsfpGtTxP   : out   slv(3 downto 0);
+      qsfpGtTxN   : out   slv(3 downto 0);
+      qsfpGtRxP   : in    slv(3 downto 0);
+      qsfpGtRxN   : in    slv(3 downto 0);
+      -- QSFP misc. signals
+      qsfpModSelL : out   sl;           -- Pull low for access over i2c!
+      qsfpResetL  : out   sl;
+      qsfpModPrsL : in    sl;
+      qsfpIntL    : in    sl;
+      qsfpLpMode  : out   sl
+      );
 end KekLrspBpmBt;
 
 architecture top_level of KekLrspBpmBt is
@@ -61,8 +80,9 @@ architecture top_level of KekLrspBpmBt is
    constant HW_INDEX_C   : natural := 0;
    constant RFDC_INDEX_C : natural := 1;
    constant APP_INDEX_C  : natural := 2;
+   constant GT_INDEX_C   : natural := 3;
 
-   constant NUM_AXIL_MASTERS_C : positive := 3;
+   constant NUM_AXIL_MASTERS_C : positive := 4;
 
    constant AXIL_CONFIG_C : AxiLiteCrossbarMasterConfigArray(NUM_AXIL_MASTERS_C-1 downto 0) := genAxiLiteConfig(NUM_AXIL_MASTERS_C, APP_ADDR_OFFSET_C, 31, 28);
 
@@ -91,12 +111,38 @@ architecture top_level of KekLrspBpmBt is
    signal dspAdc : Slv256Array(3 downto 0);
    signal dspDac : Slv256Array(1 downto 0);
 
+   signal qsfpRefClk     : sl;
+   signal qsfpRefClkCopy : sl;
+
+   signal qsfpSysClk : sl;
+
+   signal rstEvrGty : sl;
+
+   signal xvcClk156 : sl;
+   signal xvcRst156 : sl;
+
+   -- Transceiver serial data outputs
+   signal usrClk   : sl;  -- user clock (rx data interface syncrhonous to this clock)
+   signal data     : slv(15 downto 0);
+   signal gtyReady : sl;  -- Held low until GTY ready (running and aligned)
+   signal dataK    : slv(1 downto 0);
+   signal dispErr  : slv(1 downto 0);
+   signal decErr   : slv(1 downto 0);
+
 begin
 
    userLed(0) <= not(axilRst);
    userLed(1) <= not(dmaRst);
    userLed(2) <= not(dspRst);
    userLed(3) <= '1';
+
+   -- 156.25 available from oscillator on board so use that (also MMCM would
+   -- always result in timing violations)
+   xvcClk156 <= qsfpSysClk;
+   -- Do NOT use existing resets like axil reset as we might want to inspect
+   -- signals during those. If reset is required, probably better prepare
+   -- a dedicated reset for xvc.
+   xvcRst156 <= '0';
 
    -----------------------
    -- Common Platform Core
@@ -193,6 +239,85 @@ begin
          axilReadMaster  => axilReadMasters(RFDC_INDEX_C),
          axilReadSlave   => axilReadSlaves(RFDC_INDEX_C));
 
+   -- GTY Transceiver reference clock
+   U_qsfpRefClk : IBUFDS_GTE4           -- For US: GTE3, for US+: GTE4
+      generic map (
+         REFCLK_EN_TX_PATH  => '0',  -- Reserved. This attribute must always be set to 1'b0.
+         REFCLK_HROW_CK_SEL => "00",    -- 2'b00: ODIV2 = O
+         REFCLK_ICNTL_RX    => "00")
+      port map (
+         I     => qsfpRefClkP,
+         IB    => qsfpRefClkN,
+         CEB   => '0',                  -- Active low clock enable signal
+         ODIV2 => qsfpRefClkCopy,
+         O     => qsfpRefClk);
+
+   -- Transceiver reference clock. This should always be active and stable,
+   -- which it should be as the input is referenced to a free running
+   -- oscillator on the RFSoC 4x2 board (IC32).
+   U_qsfpSysClk : IBUFDS
+      port map (
+         I  => qsfpSysClkP,
+         IB => qsfpSysClkN,
+         O  => qsfpSysClk);
+
+   -- EVR GTY reset
+   -- Keep in reset when no qsfp module present (or axil reset asserted)
+   rstEvrGty <= axilRst or qsfpModPrsL;
+
+   U_EvrGty : entity work.EvrGty
+      generic map(
+         TPD_G            => TPD_G,
+         AXIL_BASE_ADDR_G => AXIL_CONFIG_C(GT_INDEX_C).baseAddr,
+         AXIL_BASE_BOT_G  => AXIL_CONFIG_C(GT_INDEX_C).addrBits,
+         STABLE_CLK_F_HZ  => 156250000,  -- 156.250 MHz
+         -- RX signal order reversed on RFSoC 4x2 board! To account for this and have
+         -- TX/RX going to the same lane of the optical transceiver, different lanes
+         -- must be chosen for the GTY transceivers. The data signal pins are fixed
+         -- package pins so we cannot just swap around the input signals to the GTY.
+         RX_LANE_IDX_G    => 3,
+         TX_LANE_IDX_G    => 0
+       -- TX_MIRROR_ENABLE_G => false
+         )
+      port map(
+         stableClk       => qsfpSysClk,
+         stableRst       => '0',
+         resetGt         => rstEvrGty,  -- Hard reset
+         gtRefClk        => qsfpRefClk,
+         evrGtTxP        => qsfpGtTxP,
+         evrGtTxN        => qsfpGtTxN,
+         evrGtRxP        => qsfpGtRxP,
+         evrGtRxN        => qsfpGtRxN,
+         evrTxResetAsync => '0',
+         evrTxResetDone  => open,
+         evrTxUsrClk     => open,
+         evrRxResetAsync => '0',
+         evrRxResetDone  => open,
+         evrRxUsrClk     => open,
+
+         -- QSFP transceiver control signals
+         qsfpModSelL => qsfpModSelL,
+         qsfpResetL  => qsfpResetL,
+         qsfpModPrsL => qsfpModPrsL,
+         qsfpIntL    => qsfpIntL,
+         qsfpLpMode  => qsfpLpMode,
+
+         -- AXI-Lite DRP interface
+         axilClk         => axilClk,
+         axilRst         => axilRst,
+         axilReadMaster  => axilReadMasters(GT_INDEX_C),
+         axilReadSlave   => axilReadSlaves(GT_INDEX_C),
+         axilWriteMaster => axilWriteMasters(GT_INDEX_C),
+         axilWriteSlave  => axilWriteSlaves(GT_INDEX_C),
+
+         -- Serial data outputs
+         usrClk   => usrClk,
+         data     => data,
+         gtyReady => gtyReady,
+         dataK    => dataK,
+         dispErr  => dispErr,
+         decErr   => decErr);
+
    --------------
    -- Application
    --------------
@@ -214,6 +339,13 @@ begin
          dspRst          => dspRst,
          dspAdc          => dspAdc,
          dspDac          => dspDac,
+         -- Serial data from transceiver
+         usrClk          => usrClk,
+         data            => data,
+         gtyReady        => gtyReady,
+         dataK           => dataK,
+         dispErr         => dispErr,
+         decErr          => decErr,
          -- AXI-Lite Interface (axilClk domain)
          axilClk         => axilClk,
          axilRst         => axilRst,
@@ -227,5 +359,24 @@ begin
    ----------------------
    dmaIbMasters(1) <= dmaObMasters(1);
    dmaObSlaves(1)  <= dmaIbSlaves(1);
+
+   -------------
+   -- XVC Module
+   -------------
+   U_XVC : entity surf.DmaXvcWrapper
+      generic map (
+         TPD_G             => TPD_G,
+         DMA_AXIS_CONFIG_G => DMA_AXIS_CONFIG_C)
+      port map (
+         -- 156.25MHz XVC Clock/Reset (xvcClk156 domain)
+         xvcClk156   => xvcClk156,
+         xvcRst156   => xvcRst156,
+         -- DMA Interface (dmaClk domain)
+         dmaClk      => dmaClk,
+         dmaRst      => dmaRst,
+         dmaObMaster => dmaObMasters(2),
+         dmaObSlave  => dmaObSlaves(2),
+         dmaIbMaster => dmaIbMasters(2),
+         dmaIbSlave  => dmaIbSlaves(2));
 
 end top_level;

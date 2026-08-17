@@ -1,17 +1,22 @@
 from pydm.widgets.frame import PyDMFrame
 from pydm.widgets import PyDMWaveformPlot, PyDMPushButton
 
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QVBoxLayout, QFormLayout, QGroupBox, QDoubleSpinBox
+from qtpy import QtCore
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
 
 from pyrogue.pydm.data_plugins.rogue_plugin import nodeFromAddress
-
-import pyrogue as pr
 
 from pyqtgraph import TextItem
 from pyqtgraph import LinearRegionItem
 from pydm import PyDMChannel
 import numpy as np
+import pyqtgraph as pg
+
+# Reloading with labels breaks thisngs and I cannot figure out why.
+# Something keeps calling the receive value callbacks even if I try to
+# disconnect all PyDM channels.
+LABELS = False
 
 
 class ShadedRegionItem:
@@ -33,7 +38,7 @@ class ShadedRegionItem:
         self.region = LinearRegionItem(values=(self.lower, self.upper), movable=False, **kwargs)
 
         self.label = None
-        if regionLabel is not None:
+        if regionLabel is not None and LABELS:
             self.label = TextItem(text=regionLabel, color="#aaaaaa", anchor=(0.5, 0.0))
 
         self.lower_channel.connect()
@@ -60,7 +65,9 @@ class ShadedRegionItem:
             self.upper = self.latest_upper
         # print(f"Setting bounds: {self.lower, self.upper}")
         self.region.setRegion((self.lower, self.upper))
-        self.label.setX((self.upper + self.lower) / 2)
+        if LABELS:
+            self.label.setX((self.upper + self.lower) / 2)
+
 
 # Inherit from PyDMWaveformPlot adding a basic way for shading regions
 class PyDMWaveformPlotRanges(PyDMWaveformPlot):
@@ -69,12 +76,14 @@ class PyDMWaveformPlotRanges(PyDMWaveformPlot):
 
         self.regions = []
 
-        self.sigYRangeChanged.connect(self.update_labels)
+        if LABELS:
+            self.sigYRangeChanged.connect(self.update_labels)
 
     def addShadedRegion(self, lowerBoundChannel, upperBoundChannel, **kwargs):
         region = ShadedRegionItem(lowerBoundChannel, upperBoundChannel, **kwargs)
         self.addItem(region.region)
-        self.addItem(region.label)
+        if LABELS:
+            self.addItem(region.label)
         self.regions += [region]
         return region
 
@@ -90,20 +99,23 @@ class WaveformDisplay(PyDMFrame):
         self,
         parent=None,
         init_channel=None,
-        nodePath="AmpFaultProcessor",
+        nodePath="SoftwarePositionCalculation",
         waveformNodeName="WaveformData",
-        background=[0, 0, 0, 255],
+        backgroundColor=[0, 0, 0, 255],
         minimumWidth=10,
         electrode_colors={"A": "royalblue", "B": "orange", "C": "red", "D": "limegreen"},
+        customRegionColors=None,
     ):
         PyDMFrame.__init__(self, parent, init_channel)
-        self.background = background
+        self.backgroundColor = backgroundColor
         self.electrode_colors = electrode_colors
         self._node = None
         self.nodePath = nodePath
         self.waveformNodeName = waveformNodeName
         self.path = f"{self.channel}.{self.nodePath}"
         self.RxEnable = nodeFromAddress(f"{self.path}.RxEnable")
+
+        self.customRegionColors = customRegionColors
 
         # Make sure this plot does not excessively restrict min size
         self.setMinimumWidth(minimumWidth)
@@ -123,13 +135,19 @@ class WaveformDisplay(PyDMFrame):
         # Remove all present shaded regions
         for shreg in self.sigPlot.regions:
             self.sigPlot.removeItem(shreg.region)
-            self.sigPlot.removeItem(shreg.label)
+            if LABELS:
+                self.sigPlot.removeItem(shreg.label)
         self.sigPlot.regions.clear()
 
         # Draw new shaded regions
         for i in range(self._num_windows):
             # color = (255, 0, 0, 50)  # Make sure this has transparency!
-            color = (0, 0, 255, 50)  # Make sure this has transparency!
+            # color = (0, 0, 255, 50)  # Make sure this has transparency!
+            if self.customRegionColors is not None and i < len(self.customRegionColors):
+                color = QColor(self.customRegionColors[i])
+            else:
+                color = pg.intColor(i, hues=self._num_windows)  # Get a color
+            color.setAlpha(50)
             shreg = self.sigPlot.addShadedRegion(
                 f"{self.channel}.SoftwarePositionCalculation.WindowOpen[{i}]",
                 f"{self.channel}.SoftwarePositionCalculation.WindowClose[{i}]",
@@ -138,7 +156,8 @@ class WaveformDisplay(PyDMFrame):
             )
 
         # Call once to position labels correctly
-        self.sigPlot.update_labels(self.sigPlot.getViewBox())
+        if LABELS:
+            self.sigPlot.update_labels(self.sigPlot.getViewBox())
 
     def resetScales(self):
         # Reset the auto-ranging
@@ -166,20 +185,29 @@ class WaveformDisplay(PyDMFrame):
         self._node = nodeFromAddress(self.channel)
 
         vb = QVBoxLayout()
+        vb.setContentsMargins(0, 0, 0, 0)
+        vb.setSpacing(2)
         self.setLayout(vb)
 
         # -----------------------------------------------------------------------------
 
-        gb = QGroupBox("Shaded regions indicate regions used for signal integration")
-        vb.addWidget(gb)
+        controls_hb = QHBoxLayout()
+        controls_hb.setAlignment(QtCore.Qt.AlignLeft)
+        vb.addLayout(controls_hb)
 
-        fl = QFormLayout()
-        fl.setRowWrapPolicy(QFormLayout.DontWrapRows)
-        fl.setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        fl.setLabelAlignment(Qt.AlignRight)
-        gb.setLayout(fl)
+        controls_label = QLabel("Waveform Plot Controls: ")
+        controls_hb.addWidget(controls_label)
 
-        self.sigPlot = PyDMWaveformPlotRanges(background=self.background)
+        rstButton = PyDMPushButton(label="Full Scale")
+        rstButton.clicked.connect(self.resetScales)
+        controls_hb.addWidget(rstButton)
+
+        # -----------------------------------------------------------------------------
+
+        # regions_label = QLabel("Shaded regions indicate regions used for signal integration")
+        # vb.addWidget(regions_label)
+
+        self.sigPlot = PyDMWaveformPlotRanges(background=self.backgroundColor)
         # TODO call shaded regions here too?
 
         self.sigPlot.addAxis(
@@ -227,28 +255,13 @@ class WaveformDisplay(PyDMFrame):
             symbolSize=3,
             yAxisName="adc_counts",
         )
-        fl.addWidget(self.sigPlot)
+        vb.addWidget(self.sigPlot)
 
         self.sigPlot.setAutoRangeX(False)
         self.sigPlot.setMinXRange(0.0)
         self.sigPlot.setMaxXRange(300.0)
 
         self.sigPlot.setShowLegend(True)
-
-        # -----------------------------------------------------------------------------
-
-        gb = QGroupBox("Signal Plot Controls")
-        vb.addWidget(gb)
-
-        fl = QFormLayout()
-        fl.setRowWrapPolicy(QFormLayout.DontWrapRows)
-        fl.setFormAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        fl.setLabelAlignment(Qt.AlignRight)
-        gb.setLayout(fl)
-
-        rstButton = PyDMPushButton(label="Full Scale")
-        rstButton.clicked.connect(self.resetScales)
-        fl.addWidget(rstButton)
 
         # -----------------------------------------------------------------------------
 

@@ -2,6 +2,11 @@
 surf.files = [
     "./submodules/surf/**/*.vhd"
 ]
+# Must exclude build dir as vhdl files are mirrored to this directory when
+# running GHDL (including cocotb) simulations for surf.
+surf.exclude= [
+    "./submodules/surf/build/**/*.vhd"
+]
 
 axi_soc_ultra_plus_core.files = [
     "./submodules/axi-soc-ultra-plus-core/shared/rtl/*.vhd",
@@ -10,8 +15,15 @@ axi_soc_ultra_plus_core.files = [
 
 top.files = [
     "./targets/KekLrspBpmBt/hdl/KekLrspBpmBt.vhd",
-    "./shared/rtl/*.vhd"
+    "./shared/**/rtl/*.vhd",
+    "./shared/**/tb/*.vhd"
 ]
+
+unisim.files = [
+    '$XILINX_VIVADO/data/vhdl/src/unisims/unisim_VCOMP.vhd',
+    '$XILINX_VIVADO/data/vhdl/src/unisims/primitive/*.vhd*',
+]
+unisim.is_third_party = true
 
 [lint]
 unnecessary_work_library = false # Disable linting for the 'library work;' statement

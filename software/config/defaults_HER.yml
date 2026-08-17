@@ -1,0 +1,56 @@
+Root:
+  ForceWrite: False
+  InitAfterConfig: False
+  PollEn: True
+  SoftwarePositionCalculation:
+    enable: True
+    RxEnable: True
+    Updated: False
+    WindowOpenRaw[0]: 166
+    WindowCloseRaw[0]: 549
+    WindowOpenRaw[1]: 561
+    WindowCloseRaw[1]: 936
+    ChannelCorrections: "[1.000000000000000000e+00, 7.143859588234058311e-01, 7.589530651692204533e-01, 7.924406018401503049e-01]"
+    SignalMapIndexFile: config/SignalMaps/SignalMapsIndex.json
+    SignalMapName: bemmapher2025 # HER!
+    CppFitterXinit: 0.0
+    CppFitterYinit: 0.0
+  RFSoC:
+    Application:
+      enable: True
+      AppRingBufferLive:
+        Adc:
+          Ch[:]:
+            TrigBurst: 0x0
+            ContinuousMode: 0x1
+        Dac:
+          Ch[:]:
+            TrigBurst: 0x0
+            ContinuousMode: 0x1
+      DacSigGen:
+        enable: True
+        BurstSize: 0x0
+        BufferLength: 0x1c
+        Continuous: 0x1
+        IdleValue: 0
+        Enabled: 0x0 # Disable!
+        CsvFilePath: config/DacSigGen/KekLinacBpm-SP_C7_4-Att20dB-96nsSpaced.csv
+      ReadoutCtrl:
+        enable: True
+        SwTrig: 0x0
+        TrigInSelIdx: irigTrig
+        TrigInPolarity: NonInverted
+        TrigInArm: 0x1
+        SetKeepArm: 0x1
+        TrigRingBufDlyRaw: 0x70e3
+        TrigRingBufDly: 113.556
+        deglitchLenRaw: 0x800
+  AttenuationCtrl:
+    enable: True
+    AttChA: 8.000000
+    AttChB: 8.000000
+    AttChC: 8.000000
+    AttChD: 8.000000
+  CalibrationCtrl:
+    enable: True
+    CoeffFile: config/adcCalibCoeffs_HER.json

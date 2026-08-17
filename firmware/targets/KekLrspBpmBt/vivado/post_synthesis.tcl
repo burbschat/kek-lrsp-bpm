@@ -18,7 +18,7 @@ source $::env(RUCKUS_PROC_TCL)
 # Bypass the debug chipscope generation via return cmd
 # ELSE ... comment out the return to include chipscope
 ######################################################
-return
+# return
 
 ############################
 ## Open the synthesis design
@@ -43,52 +43,41 @@ set_property C_DATA_DEPTH 8192 [get_debug_cores ${ilaName}]
 #################################
 ## Set the clock for the ILA core
 #################################
-SetDebugCoreClk ${ilaName} {U_Hardware/U_I2C_CLK104/axilClk}
+# TODO: I guess this really should be the axi clock but this gives timing
+# errors... Try to somehow use that clock I guess? Maybe it must be the axi
+# clock...
+SetDebugCoreClk ${ilaName} {U_XVC/xvcClk156}
+# SetDebugCoreClk ${ilaName} {U_App/axilClk}
+# SetDebugCoreClk ${ilaName} {U_RFDC/refClk}
+# SetDebugCoreClk ${ilaName} {U_EvrGty/U_EvrGtyCoreWrapper/rxUsrClk}
 
 #######################
 ## Set the debug Probes
 #######################
 
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilReadMaster[araddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[awaddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[wdata][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][rdata][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][rresp][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][bresp][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][i2cAddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regAddr][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regAddrSize][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regDataSize][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regWrData][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[sdoMuxSel][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[state][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regFailCode][*]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regRdData][*]}
+ConfigProbe ${ilaName} {U_App/axilClk}
+ConfigProbe ${ilaName} {U_App/axilRst}
 
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilReadMaster[arvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilReadMaster[rready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilRst}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[awvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[bready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/axilWriteMaster[wvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/i2co[scloen]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/i2co[sdaoen]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][arready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilReadSlave][rvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][awready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][bvalid]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[axilWriteSlave][wready]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][busReq]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][endianness]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regAddrSkip]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regOp]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][regReq]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][repeatStart]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/r[regIn][tenbit]}
-# ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/readEnable}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regAck]}
-ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/regOut[regFail]}
-# ConfigProbe ${ilaName} {U_Hardware/U_I2C_CLK104/writeEnable}
+# New EVR stuff
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_TRGS/trgs*}
+ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/trigsIn*}
+ConfigProbe ${ilaName} {U_App/U_ReadoutCtrl/trigOut*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/data*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataK*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/clk*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/rst*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/dataValid*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/readoutTrigSync*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/axis*}
+
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/dataR*}
+ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axilR*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/txSlave*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axisMaster*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axisSlave*}
 
 ##########################
 ## Write the port map file

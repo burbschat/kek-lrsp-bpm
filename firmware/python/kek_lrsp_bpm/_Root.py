@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------
 
 import time
+import socket
 
 import rogue
 import rogue.interfaces.stream as stream
@@ -18,8 +19,10 @@ import rogue.interfaces.memory
 
 import pyrogue as pr
 import pyrogue.protocols
+import pyrogue.protocols.epicsV7
 import pyrogue.utilities.fileio
 import pyrogue.utilities.prbs
+import pyrogue.interfaces.stream
 
 import kek_lrsp_bpm as rfsoc
 import axi_soc_ultra_plus_core.rfsoc_utility as rfsoc_utility
@@ -33,20 +36,33 @@ class Root(pr.Root):
     def __init__(
         self,
         ip="10.0.0.10",  # ETH Host Name (or IP address)
+        bpmType="bt",
+        hardDisableFit=False,
+        hardDisablePoly=False,
         top_level="",
         defaultFile="",
         lmkConfig="config/lmk/HexRegisterValues_CLKin0-125MHz_CLKin1-10MHz.txt",
         lmxConfig="config/lmx/HexRegisterValues.txt",
+        defaultClkSource="ext",
         signalMapsIndexFile="config/SignalMaps/SignalMapsIndex.json",
         sampleRate=5.0e9,  # Units of Hz, depends on PLL config
         zmqSrvPort=9099,  # Set to zero if dynamic (instead of static)
+        nWindows=2,
+        epicsPrefix=None,
+        getPvMap=lambda *args, **kwargs: {},
+        zmqLocalOnly=True,
         **kwargs,
     ):
         super().__init__(timeout=5.0, **kwargs)
 
         #################################################################
 
-        self.zmqServer = pyrogue.interfaces.ZmqServer(root=self, addr="127.0.0.1", port=zmqSrvPort)
+        # Set * to allow zmq access from other than localhost
+        if zmqLocalOnly:
+            addr = "127.0.0.1"
+        else:
+            addr = "*"
+        self.zmqServer = pyrogue.interfaces.ZmqServer(root=self, addr=addr, port=zmqSrvPort)
         self.addInterface(self.zmqServer)
 
         #################################################################
@@ -63,6 +79,20 @@ class Root(pr.Root):
             self.lmkConfig = lmkConfig
             self.lmxConfig = lmxConfig
             self.signalMapsIndexFile = signalMapsIndexFile
+
+        self.defaultClkSource = defaultClkSource
+
+        # BPM type ('bt' or 'inj')
+        self.bpmType = bpmType
+        # Optiont to hard disable poly or fit poscalc
+        self.hardDisableFit = hardDisableFit
+        self.hardDisablePoly = hardDisablePoly
+        # Number of windows for which to integrate the signal and compute a position
+        self.nWindows = nWindows
+        # Prefix string used for EPICS PVs
+        self.epicsPrefix = epicsPrefix
+        # Function to obtain rogue variables to PVs map dictionary
+        self.getPvMap = getPvMap
 
         # File writer
         self.dataWriter = pr.utilities.fileio.StreamWriter(name="DataWriter")
@@ -131,13 +161,18 @@ class Root(pr.Root):
 
         # Create rogue stream arrays
         if ip != None:
+            # port = 10000+512*lane+2*tdest
             self.ringBufferAdcLive = [stream.TcpClient(ip, 10000 + 2 * (i + 0)) for i in range(4)]
             self.ringBufferDacLive = [stream.TcpClient(ip, 10000 + 2 * (i + 16)) for i in range(2)]
             self.ringBufferAdc = stream.TcpClient(ip, 10000 + 2 * (0 + 4))  # No DACs required here, interleaved into one stream
+            self.xvcStream = stream.TcpClient(ip, 10000 + 512 * 2 + 2 * 0)  # Lane 2 dest 0
+            self.dbSdTest = stream.TcpClient(ip, 10000 + 2 * 0x12)  # Lane 2 dest 0
         else:
+            # id = 256*lane+tdest
             self.ringBufferAdcLive = [rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", i + 0, True) for i in range(4)]
             self.ringBufferDacLive = [rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 16 + i, True) for i in range(2)]
             self.ringBufferAdc = rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 0 + 4, True)  # No DACs required here, interleaved into one stream
+            self.xvcStream = rogue.hardware.axi.AxiStreamDma("/dev/axi_stream_dma_0", 256 * 2 + 0, True)  # Lane 2 dest 0
         self.adcLiveDropFifo = [pr.interfaces.stream.Fifo(name=f"AdcLiveDropFifo[{i}]", maxDepth=1) for i in range(4)]  # Drop if more than 1 frame in FIFO
         self.dacLiveDropFifo = [pr.interfaces.stream.Fifo(name=f"DacLiveDropFifo[{i}]", maxDepth=1) for i in range(2)]  # Drop if more than 1 frame in FIFO
         self.adcDropFifo = [pr.interfaces.stream.Fifo(name=f"AdcDropFifo[{i}]", maxDepth=1) for i in range(4)]  # Drop if more than 1 frame in FIFO
@@ -147,14 +182,18 @@ class Root(pr.Root):
         self.dacLiveProcessor = [rfsoc_utility.RingBufferProcessor(name=f"DacLiveProcessor[{i}]", sampleRate=sampleRate) for i in range(2)]
         self.adcProcessor = [rfsoc_utility.RingBufferProcessor(name=f"AdcProcessor[{i}]", sampleRate=sampleRate) for i in range(4)]
 
+        self.dbSdTestProcessor = rfsoc.DbSdTestProcessor(name="DbSdProcessor")
+
         self.posCalcProc = rfsoc.SoftwarePosCalcProcessor(
             name="SoftwarePositionCalculation",
             sampleRate=sampleRate,
             signalMapIndexFile=self.signalMapsIndexFile,  # Default value, can be changed dynamically
+            polyVarsType=self.bpmType,  # bt or injp
             bufferDepth=2**8 * 16,  # TODO: Make dynamic!
-            nWindows=5,
+            nWindows=self.nWindows,
             hidden=False,
-            hardDisableFit=True,  # Maybe implement command line argument to enable/disable fit/poly...
+            hardDisableFit=self.hardDisableFit,
+            hardDisablePoly=self.hardDisablePoly,
         )
 
         # Connect the rogue stream arrays: ADC Ring Buffer Paths
@@ -177,6 +216,43 @@ class Root(pr.Root):
             self.ringBufferDacLive[i] >> self.dacLiveDropFifo[i] >> self.dacLiveProcessor[i]
             self.add(self.dacLiveProcessor[i])
 
+        self.add(self.dbSdTestProcessor)
+        self.dbSdTest >> self.dbSdTestProcessor
+
+        # Create and connect XVC on localhost
+        xvc_port = get_free_port(preferred=2542)
+        print(f"Starting XVC server on port {xvc_port}")
+        self.xvc = rogue.protocols.xilinx.Xvc(xvc_port)
+        self.addProtocol(self.xvc)
+        self.xvcStream == self.xvc  # Connect DMA lane 2 dest 0 to XVC
+
+        ##################################################################################
+        ##                              EPICS Access
+        ##################################################################################
+
+        # Only enable EPICS bridging when prefix specified
+        if self.epicsPrefix is not None:
+
+            # Position calculation related variables (for each window). Some are
+            # only available if poly/fit poscalc is not hard disabled.
+            poscalcPath = "Root.SoftwarePositionCalculation"
+            self.pvMap = self.getPvMap(
+                poscalcPath,
+                self.posCalcProc._hardDisablePoly,
+                self.posCalcProc._hardDisableFit,
+                self.nWindows,
+            )
+
+            # Instantiate the protocol (self.add call not required for this protocol!)
+            self.epicsV7 = pyrogue.protocols.epicsV7.EpicsPvServer(
+                base=self.epicsPrefix,
+                root=self,
+                pvMap=self.pvMap,
+            )
+
+            # Print the mapped PVs
+            self.epicsV7.dump()
+
     ##################################################################################
 
     def start(self, **kwargs):
@@ -190,6 +266,16 @@ class Root(pr.Root):
 
         # Initialize the LMK/LMX Clock chips
         self.Hardware.InitClock(lmkConfig=self.lmkConfig, lmxConfig=[self.lmxConfig])
+
+        # This DOES technically depend on the LMK configuration to be such that
+        # clock select via the GPIO pin is allowed, but all configs used for
+        # this application should be such that this is possible.
+        if self.defaultClkSource == "ext":
+            self.Hardware.GpioPs.LMK_CLK_IN_SEL0_OUT.set(0)
+        elif self.defaultClkSource == "int":
+            self.Hardware.GpioPs.LMK_CLK_IN_SEL0_OUT.set(1)
+        else:
+            raise ValueError(f"Invalid clock source: {self.clkSource}")
 
         print("Wait for DSP Clock to be stable")
         self.RFSoC.AxiSocCore.DspRstWait()
@@ -210,6 +296,12 @@ class Root(pr.Root):
         self.Rfdc.Mts.SyncAdcTiles()
         self.Rfdc.Mts.SyncDacTiles()
 
+        # Initial loading of position computation related data like poly
+        # coeffs, signal maps etc.
+        # Must happen before config load as otherwise setting SignalMapName may
+        # fail if the index is not yet loaded.
+        self.posCalcProc.startupInit()
+
         # Load the Default YAML file
         print(f"Loading path={self.defaultFile} Default Configuration File...")
         self.LoadConfig(self.defaultFile)
@@ -223,10 +315,6 @@ class Root(pr.Root):
             dacSigGen.LoadCsvFile()
         else:
             self.RFSoC.Application.DacSigGenLoader.LoadSingleTones()
-
-        # Initial loading of position computation related data like poly
-        # coeffs, signal maps etc.
-        self.posCalcProc.startupInit()
 
         # Connect position calculation. Do so after initializing the fitter to
         # avoid the fitter being called with default values which would arrive
@@ -250,3 +338,17 @@ class Root(pr.Root):
         unhide_recursive(self)
 
     ##################################################################################
+
+def get_free_port(preferred, host="127.0.0.1"):
+    # Try the preferred port first
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, preferred))
+            return preferred
+        except OSError:
+            pass
+
+    # Fall back to an ephemeral port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, 0))
+        return s.getsockname()[1]

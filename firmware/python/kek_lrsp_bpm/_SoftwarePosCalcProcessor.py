@@ -6,6 +6,8 @@ from sklearn.preprocessing import PolynomialFeatures
 import json
 import os
 
+# TODO: This module has become way to complicated. Split into different
+# processors depending on the exact application.
 
 def load_poly_coeffs(coeffs_file_path):
     with open(coeffs_file_path, "r") as f:
@@ -55,6 +57,19 @@ def compute_pos_poly(delsigx, delsigy, coeffx, coeffy, degree):
     return posx, posy
 
 
+def getDelsigInjPoint(sums):
+    # Cross-over electrode pairs (injection BPM)
+    delsigx = (sums[0] - sums[2]) / (sums[0] + sums[2])
+    delsigy = (sums[1] - sums[3]) / (sums[1] + sums[3])
+    return delsigx, delsigy
+
+
+def getDelsigInjBT(sums):
+    delsigx = ((sums[0] + sums[3]) - (sums[1] + sums[2])) / (sums[0] + sums[1] + sums[2] + sums[3])
+    delsigy = ((sums[0] + sums[1]) - (sums[2] + sums[3])) / (sums[0] + sums[1] + sums[2] + sums[3])
+    return delsigx, delsigy
+
+
 class SoftwarePosCalcProcessor(pr.DataReceiver):
     bobyqaErrors = {
         -1: "NPT is not in the required interval",
@@ -68,10 +83,15 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
     def __init__(
         self,
         signalMapIndexFile,
+        polyVarsType,  # bt or injp
         *args,
         nWindows=2,
         hardDisablePoly=False,
         hardDisableFit=False,
+        hardDisableMaskedFit=False,
+        hardDisableChargeReject=True,
+        flipX=False,
+        flipY=False,
         sampleRate=5.0e9,
         bufferDepth=2**6,
         **kwargs,
@@ -88,22 +108,39 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         self.Data.addToGroup("NoStream")
         self.Data.addToGroup("NoStatus")
 
+        if polyVarsType == "bt":
+            self.getDelsig = getDelsigInjBT
+        elif polyVarsType == "injp":
+            self.getDelsig = getDelsigInjPoint
+        else:
+            raise KeyError(f"Invalid polynomial variables type: {polyVarsType}. Choose 'bt' or 'injp'.")
+
         # Configurable variables
         self._bufferDepth = bufferDepth
         self._timeBin = 1.0e9 / sampleRate  # Units of ns
 
-        # Possibility to not even instantiate variables etc. for a given
+        # Option to not even instantiate variables etc. for a given
         # position calculation method
         self._hardDisablePoly = hardDisablePoly
         self._hardDisableFit = hardDisableFit
+        self._hardDisableMaskedFit = hardDisableMaskedFit
+        # Option to disable data rejection based on computed charge
+        self._hardDisableChargeReject = hardDisableChargeReject
+
+        # Option to flip either axis as that was requested for backwards
+        # compatibility (existing measurements had X flipped convention)
+        self._flipX = flipX
+        self._flipY = flipY
 
         # Do not attempt to import shared library if fit hard disabled
         self._posFitModule = None
         if not self._hardDisableFit:
-            if importlib.util.find_spec("kek_bpm_rfsoc_stripline.PosFit") is None:
+            if importlib.util.find_spec("kek_lrsp_bpm.PosFit") is None:
                 print("Could not find FitPos shared object. Make sure to compile the CPP position fit code.")
-                exit(1)
-            self._posFitModule = importlib.import_module("kek_bpm_rfsoc_stripline.PosFit")
+                # Do not exit here but rather proceed to try to load the
+                # non-existing module which will throw an appropriate
+                # exception.
+            self._posFitModule = importlib.import_module("kek_lrsp_bpm.PosFit")
 
         # Number of windows for which to integrate the waveform and compute
         # a position.
@@ -158,9 +195,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LinkVariable(
                     name=f"WindowOpen[{i}]",
                     description="Integration window left boundary in ns",
-                    typeStr="Float",
+                    typeStr="Float64",
                     units="ns",
-                    dependencies=[self.WindowOpenRaw[0]],
+                    dependencies=[self.WindowOpenRaw[i]],
                     # Must use default arguments to ensure index properly resolved in each lambda!
                     linkedGet=lambda idx=i: (float(self.WindowOpenRaw[idx].value() * self._timeBin)),
                     linkedSet=lambda value, write, idx=i: self.WindowOpenRaw[idx].set(int(value / self._timeBin)),
@@ -172,7 +209,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LinkVariable(
                     name=f"WindowClose[{i}]",
                     description="Integration window left boundary in ns",
-                    typeStr="Float",
+                    typeStr="Float64",
                     units="ns",
                     dependencies=[self.WindowCloseRaw[i]],
                     # Must use default arguments to ensure index properly resolved in each lambda!
@@ -185,7 +222,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         # self.add(pr.LocalVariable(
         #     name        = f'SumPower',
         #     description = 'Power to which the absolute value of the signal is raised before summing',
-        #     typeStr     = 'Float',
+        #     typeStr     = 'Float64',
         #     value       = 1,  # For now, leave this 1 (just add the option to try out 2)
         #     hidden      = False,
         # ))
@@ -194,8 +231,8 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             pr.LocalVariable(
                 name="ChannelCorrections",
                 description="Correction factors to apply to each channel reading (waveform sum)",
-                typeStr="Float[np]",
-                value=np.array([1, 1, 1, 1]),
+                typeStr="Float64[np]",
+                value=np.array([1, 1, 1, 1], dtype=np.float64),
                 hidden=False,
             )
         )
@@ -266,7 +303,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             #     pr.LocalVariable(
             #         name="PolyCoeffC",
             #         description="Charge calculation coefficients",
-            #         typeStr="Float[np]",
+            #         typeStr="Float64[np]",
             #         value=np.array([0]),
             #         groups=["polyPosCalc"],
             #         hidden=False,
@@ -281,6 +318,18 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 value=not self._hardDisableFit,
                 hidden=False,
                 mode="RO" if self._hardDisableFit else "RW",
+                localSet=self.updatePosCalcNodesVisibility,
+            )
+        )
+
+        self.add(
+            pr.LocalVariable(
+                name=f"maskedFitEn",
+                description="Enable masked fit position calculation",
+                typeStr="bool",
+                value=not self._hardDisableMaskedFit,
+                hidden=False,
+                mode="RO" if self._hardDisableMaskedFit or self._hardDisableFit else "RW",
                 localSet=self.updatePosCalcNodesVisibility,
             )
         )
@@ -312,11 +361,28 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 )
             )
 
+            # CPP fitter loads the map directly (for performance) but also
+            # mirror its contents to a variable to make it accessible for use
+            # in the GUI. This should be the loaded signal map so set this in
+            # the same function as used for instantiating/updating CPP fitter.
+            self.add(
+                pr.LocalVariable(
+                    name="SignalMapData",
+                    description="Signals map data",
+                    mode="RO",
+                    typeStr="Unknown",
+                    type=np.array,
+                    value=np.array([0]),
+                    groups=["fitPosCalc"],
+                    hidden=False,
+                )
+            )
+
             self.add(
                 pr.LocalVariable(
                     name="CppFitterXinit",
                     description="Initial x value for CPP signal map fitter",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.0,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -328,7 +394,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="CppFitterYinit",
                     description="Initial y value for CPP signal map fitter",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.0,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -340,7 +406,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="RhoBeg",
                     description="Initial value of rho (trust region) for bobyaqa minimizer. Tune for fit stability.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=0.5,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -352,7 +418,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="RhoEnd",
                     description="Final value of rho (trust region) for bobyaqa minimizer. Dictates fit result precicsion.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=1e-12,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -376,7 +442,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="FitLimX",
                     description="Limit on x coordinate used during minimization. Symetric around origin. Smaller region stabilizes fit.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=6.4,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -388,7 +454,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name="FitLimY",
                     description="Limit on y coordinate used during minimization. Symetric around origin. Smaller region stabilizes fit.",
-                    typeStr="Float",
+                    typeStr="Float64",
                     value=3.7,
                     localSet=self._reinitFitterIfChanged,
                     groups=["fitPosCalc"],
@@ -402,9 +468,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 pr.LocalVariable(
                     name=f"Charge[{i}]",
                     description="bunch charge variable",
-                    typeStr="Float",
+                    typeStr="Float64",
                     mode="RO",
-                    value=0,
+                    value=0.0,
                     hidden=False,
                 )
             )
@@ -414,9 +480,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"XposPoly[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["polyPosCalc"],
                         hidden=False,
                     )
@@ -426,9 +492,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"YposPoly[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["polyPosCalc"],
                         hidden=False,
                     )
@@ -439,9 +505,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"XposFit[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
@@ -451,106 +517,108 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                     pr.LocalVariable(
                         name=f"YposFit[{i}]",
                         description="position variable",
-                        typeStr="Float",
+                        typeStr="Float64",
                         mode="RO",
-                        value=0,
+                        value=0.0,
                         groups=["fitPosCalc"],
                         hidden=False,
                     )
                 )
 
-                # TODO: Do masked computation only when enabled! Add an enable variable!
-                for j in range(4):
+                if not self._hardDisableMaskedFit:
+                    for j in range(4):
+                        self.add(
+                            pr.LocalVariable(
+                                name=f"XposFitMasked{0xf^(0b1<<j):04b}[{i}]",
+                                description="position variable with masked channels",
+                                typeStr="Float64",
+                                mode="RO",
+                                value=0.0,
+                                hidden=False,
+                            )
+                        )
+
+                        self.add(
+                            pr.LocalVariable(
+                                name=f"YposFitMasked{0xf^(0b1<<j):04b}[{i}]",
+                                description="position variable with masked channels",
+                                typeStr="Float64",
+                                mode="RO",
+                                value=0.0,
+                                hidden=False,
+                            )
+                        )
+
                     self.add(
                         pr.LocalVariable(
-                            name=f"XposFitMasked{0xf^(0b1<<j):04b}[{i}]",
-                            description="position variable with masked channels",
-                            typeStr="Float",
+                            name=f"XposFitMaskedStd[{i}]",
+                            description="standard deviation of position variables with masked channels",
+                            typeStr="Float64",
                             mode="RO",
-                            value=0,
+                            value=0.0,
+                            groups=["fitPosCalc"],
                             hidden=False,
                         )
                     )
 
                     self.add(
                         pr.LocalVariable(
-                            name=f"YposFitMasked{0xf^(0b1<<j):04b}[{i}]",
-                            description="position variable with masked channels",
-                            typeStr="Float",
+                            name=f"YposFitMaskedStd[{i}]",
+                            description="standard deviation of position variables with masked channels",
+                            typeStr="Float64",
                             mode="RO",
-                            value=0,
+                            value=0.0,
+                            groups=["fitPosCalc"],
                             hidden=False,
                         )
                     )
 
+                    self.add(
+                        pr.LocalVariable(
+                            name=f"XposFitMaskedMean[{i}]",
+                            description="mean of position variables with masked channels",
+                            typeStr="Float64",
+                            mode="RO",
+                            value=0.0,
+                            groups=["fitPosCalc"],
+                            hidden=False,
+                        )
+                    )
+
+                    self.add(
+                        pr.LocalVariable(
+                            name=f"YposFitMaskedMean[{i}]",
+                            description="mean of position variables with masked channels",
+                            typeStr="Float64",
+                            mode="RO",
+                            value=0.0,
+                            groups=["fitPosCalc"],
+                            hidden=False,
+                        )
+                    )
+
+            if not self._hardDisableChargeReject:
                 self.add(
                     pr.LocalVariable(
-                        name=f"XposFitMaskedStd[{i}]",
-                        description="standard deviation of position variables with masked channels",
-                        typeStr="Float",
-                        mode="RO",
-                        value=0,
-                        groups=["fitPosCalc"],
+                        name=f"ChargeThreshold[{i}]",
+                        description="Threshold below which measurements are considered empty shots and discarded",
+                        typeStr="Float64",
+                        mode="RO" if self._hardDisableChargeReject else "RW",
+                        value=0.0,
                         hidden=False,
                     )
                 )
 
                 self.add(
                     pr.LocalVariable(
-                        name=f"YposFitMaskedStd[{i}]",
-                        description="standard deviation of position variables with masked channels",
-                        typeStr="Float",
+                        name=f"EmptyShotsSinceLast[{i}]",
+                        description="Number of empty shots since last non-empty shot",
+                        typeStr="Int",
                         mode="RO",
                         value=0,
-                        groups=["fitPosCalc"],
                         hidden=False,
                     )
                 )
-
-                self.add(
-                    pr.LocalVariable(
-                        name=f"XposFitMaskedMean[{i}]",
-                        description="mean of position variables with masked channels",
-                        typeStr="Float",
-                        mode="RO",
-                        value=0,
-                        groups=["fitPosCalc"],
-                        hidden=False,
-                    )
-                )
-
-                self.add(
-                    pr.LocalVariable(
-                        name=f"YposFitMaskedMean[{i}]",
-                        description="mean of position variables with masked channels",
-                        typeStr="Float",
-                        mode="RO",
-                        value=0,
-                        groups=["fitPosCalc"],
-                        hidden=False,
-                    )
-                )
-
-            self.add(
-                pr.LocalVariable(
-                    name=f"ChargeThreshold[{i}]",
-                    description="Threshold below which measurements are considered empty shots and discarded.",
-                    typeStr="Float",
-                    value=0.0,
-                    hidden=False,
-                )
-            )
-
-            self.add(
-                pr.LocalVariable(
-                    name=f"EmptyShotsSinceLast[{i}]",
-                    description="Number of empty shots since last non-empty shot.",
-                    typeStr="Int",
-                    mode="RO",
-                    value=0,
-                    hidden=False,
-                )
-            )
 
             # This is technically all that is required to re-do the position
             # calculation offline. Stick them into an array so they can be
@@ -594,9 +662,40 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
 
         self.add(
             pr.LocalVariable(
+                name="Metadata",
+                description="Metadata buffer (shared data) obtained from the event system",
+                typeStr="Float64[np]",
+                value=np.zeros(shape=2048, dtype=np.uint16, order="C"),
+                hidden=True,
+                groups=guiGroups,  # Maybe also want metadata in the GUI?
+            )
+        )
+
+        self.add(
+            pr.LinkVariable(
+                name="ShotID",
+                description="Shot ID extracted from metadata buffer",
+                mode="RO",
+                dependencies=[self.Metadata],
+                linkedGet=lambda: self.Metadata.value()[2],
+            )
+        )
+
+        # All results collected into vector to ensure temporal coherence
+        self.add(
+            pr.LocalVariable(
+                name="ResultsVector",
+                description="Results from a given shot including metadata collected into a list",
+                mode="RO",
+                value=np.zeros(nWindows * 2 * (int(not self._hardDisableFit) + int(not self._hardDisablePoly)) + 1)
+            )
+        )
+
+        self.add(
+            pr.LocalVariable(
                 name="Time",
                 description="Time steps (ns)",
-                typeStr="Float[np]",
+                typeStr="Float64[np]",
                 value=timeSteps,
                 hidden=True,
                 groups=guiGroups,
@@ -608,6 +707,35 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 name="NewDataReady",
                 value=False,
                 groups=guiGroups,
+            )
+        )
+
+        # Add duplicate variables with different names for the one variable on
+        # multiple EPICS PVs workaround
+        self.add(
+            pr.LinkVariable(
+                name=f"XposFit0Dup",
+                variable=self.XposFit[0],
+                mode="RO",
+                hidden=True,
+            )
+        )
+
+        self.add(
+            pr.LinkVariable(
+                name=f"YposFit0Dup",
+                variable=self.YposFit[0],
+                mode="RO",
+                hidden=True,
+            )
+        )
+
+        self.add(
+            pr.LinkVariable(
+                name=f"Charge0Dup",
+                variable=self.Charge[0],
+                mode="RO",
+                hidden=True,
             )
         )
 
@@ -625,6 +753,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                         node_pointer.addToGroup("Hidden")
 
     # Compute position using polynomials
+    # TODO: Currently coefficients are shared. If different coefficients should
+    # be used for different windows this would have to be changed, i.e. add
+    # coefficient variables for each window.
     def _computePosPoly(self, sums: np.array):
         # Get coefficient matrices
         coeffx = self.PolyCoeffX.get()
@@ -633,12 +764,11 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         degree = self.PolyDegree.get()
 
         # TODO: Add attribute to select which one we use here
-        # Cross-over electrode pairs (injection BPM)
-        # delsigx = (sums[0] - sums[2]) / (sums[0] + sums[2])
-        # delsigy = (sums[1] - sums[3]) / (sums[1] + sums[3])
         # For BT: this?
         delsigx = ((sums[0] + sums[3]) - (sums[1] + sums[2])) / (sums[0] + sums[1] + sums[2] + sums[3])
         delsigy = ((sums[0] + sums[1]) - (sums[2] + sums[3])) / (sums[0] + sums[1] + sums[2] + sums[3])
+
+        delsigx, delsigy = self.getDelsig(sums)
 
         posx, posy = compute_pos_poly(delsigx, delsigy, coeffx, coeffy, degree)
 
@@ -671,9 +801,11 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
     def _setSignalMapName(self, value, changed):
         if changed:
             # Re-initialize CPP fitter
-            self._initCppFitter()
+            if not self._hardDisableFit:
+                self._initCppFitter()
             # Re-load the polynomial coefficients
-            self._loadPolyCoeffs()
+            if not self._hardDisablePoly:
+                self._loadPolyCoeffs()
 
     def _getCoeffsFilePathFromMapName(self):
         # Read metadata from index
@@ -709,6 +841,11 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         if changed:
             # Re-initialize CPP fitter
             self._initCppFitter()
+
+    def _updateSignalMapVar(self, signalMapPath):
+        data_array = np.loadtxt(signalMapPath, delimiter=",", dtype=np.float64)
+        print(data_array)
+        self.SignalMapData.set(data_array)
 
     def _initCppFitter(self):
         # Read metadata from index
@@ -751,6 +888,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         ylim = self.FitLimY.get()
         self._cppFitter.setLim(-xlim, xlim, -ylim, ylim)
 
+        # Update the value of variable containing signal map values (for use in GUI)
+        self._updateSignalMapVar(signalMapPath)
+
     def _fitPosCpp(self, v1, v2, v3, v4, en1, en2, en3, en4):
         # Must make sure to convert to python float (numpy float won't work)
         exitCode = self._cppFitter.fit(
@@ -792,11 +932,43 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         # Reset the flag
         self.NewDataReady.set(False)
 
+    def applyFlipConventions(self, xpos, ypos):
+        xres = -xpos if self._flipX else xpos
+        yres = -ypos if self._flipY else ypos
+        return xres, yres
+
     # Method which is called when a frame is received
     def process(self, frame):
         with self.root.updateGroup():
             # Convert the frame data into a numpy 16-bit integer array
-            dat = frame.getNumpy(0, frame.getPayload()).view(np.int16)
+            pl = frame.getNumpy(0, frame.getPayload())
+            # pl = pl.view(np.uint8)  # Should already be uint8...
+            btr_supfr_hdr_bytes = 2  # 2 byte super frame header
+            btr_subfrm_tail_bytes = 7  # 7 byte sub frame tail
+            # Superframe header from batcher
+            batcher_header = pl[0:btr_supfr_hdr_bytes]
+            # nr. of samples in buffer * 4 channels * 2 byte per sample = offset in bytes
+            dat_bytes = 2 * self._bufferDepth * 4
+            dat = pl[btr_supfr_hdr_bytes : btr_supfr_hdr_bytes + dat_bytes].view(np.int16)
+            # Get the metadata payload bytes
+            meta = pl[btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes : -btr_subfrm_tail_bytes]
+            # Subframe tails from batcher
+            data_tail = pl[btr_supfr_hdr_bytes + dat_bytes : btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes]
+            meta_tail = pl[-btr_supfr_hdr_bytes : ]
+            # For some reason the first byte is always 0x01. Probably part of
+            # the protocol but not documented. The byte is there in the serial
+            # data stream (as verified with ILA). Apparently not part of the 
+            # payload so ignore this byte.
+            meta = meta[1:]
+            # Always pad to fixed size (2048 byte). Transmissions may terminate
+            # early so the received buffer can be shorter.
+            meta = np.pad(meta, (0, max(0, 2048 - meta.size)))
+            # Metadata is uint16 but big endian as it originates from some
+            # PowerPC VNC device. Decode accordingly.
+            meta = meta.view(">u2")
+            # np.set_printoptions(threshold=sys.maxsize)
+            # print("Batcher header:", batcher_header)
+            # print("Metadata:", meta)
 
             # Reshape the array into (4, N) format
             waveformData = dat.reshape(-1, 4).T  # Transpose to get (4, N) shape
@@ -805,6 +977,8 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             channelCorrections = self.ChannelCorrections.get()
 
             atLeastOneWindowUpdated = False
+
+            resultsVector = []
 
             # TODO: Consider running in parallel if too slow
             for i in range(self._nWindows):
@@ -822,96 +996,106 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 # This is the uncalibrated 'charge', only useful for qualitative monitoring!
                 charge = self._computeCharge(sums)
 
-                charge_threshold = self.ChargeThreshold[i].get()
-                if charge >= charge_threshold:
+                # TODO: Do something smarter than charge threshold. Also decide
+                # if we want to read out only if charge was sufficient on a per
+                # BPM basis or per shot basis, meaning read all if one had
+                # sufficient charge or read each only if charge sufficient.
+                if self._hardDisableChargeReject or (charge >= self.ChargeThreshold[i].get()):
                     polyEn = self.polyEn.get()
                     fitEn = self.fitEn.get()
+                    maskedFitEn = self.maskedFitEn.get()
                     if polyEn:
                         # Process waveforms to get positions
                         # Polynomial computation
                         xposPoly, yposPoly = self._computePosPoly(sums)
+                        xposPoly, yposPoly = self.applyFlipConventions(xposPoly, yposPoly)
                     if fitEn:
                         # Fit computation. Fails with exception if the fit does not
                         # converge leading to this function to return before the results
                         # are written to the local variables (intended behaviour).
                         xposFit, yposFit = self._computePosFit(sums, np.array([True, True, True, True]))
+                        xposFit, yposFit = self.applyFlipConventions(xposFit, yposFit)
 
-                        # TODO: Make less verbose
-                        xposFitMasked0111, yposFitMasked0111 = self._computePosFit(
-                            sums, np.array([False, True, True, True])
-                        )
-                        xposFitMasked1011, yposFitMasked1011 = self._computePosFit(
-                            sums, np.array([True, False, True, True])
-                        )
-                        xposFitMasked1101, yposFitMasked1101 = self._computePosFit(
-                            sums, np.array([True, True, False, True])
-                        )
-                        xposFitMasked1110, yposFitMasked1110 = self._computePosFit(
-                            sums, np.array([True, True, True, False])
-                        )
+                        if maskedFitEn:
+                            # TODO: Make less verbose
+                            xposFitMasked0111, yposFitMasked0111 = self._computePosFit(sums, np.array([False, True, True, True]))
+                            xposFitMasked1011, yposFitMasked1011 = self._computePosFit(sums, np.array([True, False, True, True]))
+                            xposFitMasked1101, yposFitMasked1101 = self._computePosFit(sums, np.array([True, True, False, True]))
+                            xposFitMasked1110, yposFitMasked1110 = self._computePosFit(sums, np.array([True, True, True, False]))
+                            xposFitMasked0111, yposFitMasked0111 = self.applyFlipConventions(xposFitMasked0111, yposFitMasked0111)
+                            xposFitMasked1011, yposFitMasked1011 = self.applyFlipConventions(xposFitMasked1011, yposFitMasked1011)
+                            xposFitMasked1101, yposFitMasked1101 = self.applyFlipConventions(xposFitMasked1101, yposFitMasked1101)
+                            xposFitMasked1110, yposFitMasked1110 = self.applyFlipConventions(xposFitMasked1110, yposFitMasked1110)
 
-                        xposFitMaskedMean = np.mean(
-                            [xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110]
-                        )
-                        yposFitMaskedMean = np.mean(
-                            [yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110]
-                        )
+                            xposFitMaskedMean = np.mean([xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110])
+                            yposFitMaskedMean = np.mean([yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110])
 
-                        xposFitMaskedStd = np.std(
-                            [xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110]
-                        )
-                        yposFitMaskedStd = np.std(
-                            [yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110]
-                        )
+                            xposFitMaskedStd = np.std([xposFitMasked0111, xposFitMasked1011, xposFitMasked1101, xposFitMasked1110])
+                            yposFitMaskedStd = np.std([yposFitMasked0111, yposFitMasked1011, yposFitMasked1101, yposFitMasked1110])
 
                     # Write results to variables
                     self.Sums[i].set(sums_raw)  # Use uncorrected values!
                     self.SumsSq[i].set(sums_sq_raw)  # Use uncorrected values!
 
                     if polyEn:
-                        # TODO: Check if here we also want the sign flip!
-                        self.XposPoly[i].set(-xposPoly)
+                        self.XposPoly[i].set(xposPoly)
                         self.YposPoly[i].set(yposPoly)
+                        resultsVector += [xposPoly, yposPoly]
 
                     if fitEn:
-                        self.XposFit[i].set(-xposFit)
+                        self.XposFit[i].set(xposFit)
                         self.YposFit[i].set(yposFit)
+                        resultsVector += [xposFit, yposFit]
 
-                        self.XposFitMasked0111[i].set(-xposFitMasked0111)
-                        self.XposFitMasked1011[i].set(-xposFitMasked1011)
-                        self.XposFitMasked1101[i].set(-xposFitMasked1101)
-                        self.XposFitMasked1110[i].set(-xposFitMasked1110)
+                        if maskedFitEn:
+                            self.XposFitMasked0111[i].set(xposFitMasked0111)
+                            self.XposFitMasked1011[i].set(xposFitMasked1011)
+                            self.XposFitMasked1101[i].set(xposFitMasked1101)
+                            self.XposFitMasked1110[i].set(xposFitMasked1110)
 
-                        self.YposFitMasked0111[i].set(yposFitMasked0111)
-                        self.YposFitMasked1011[i].set(yposFitMasked1011)
-                        self.YposFitMasked1101[i].set(yposFitMasked1101)
-                        self.YposFitMasked1110[i].set(yposFitMasked1110)
+                            self.YposFitMasked0111[i].set(yposFitMasked0111)
+                            self.YposFitMasked1011[i].set(yposFitMasked1011)
+                            self.YposFitMasked1101[i].set(yposFitMasked1101)
+                            self.YposFitMasked1110[i].set(yposFitMasked1110)
 
-                        self.XposFitMaskedStd[i].set(xposFitMaskedStd)
-                        self.YposFitMaskedStd[i].set(yposFitMaskedStd)
+                            self.XposFitMaskedStd[i].set(xposFitMaskedStd)
+                            self.YposFitMaskedStd[i].set(yposFitMaskedStd)
 
-                        self.XposFitMaskedMean[i].set(-xposFitMaskedMean)
-                        self.YposFitMaskedMean[i].set(yposFitMaskedMean)
+                            self.XposFitMaskedMean[i].set(xposFitMaskedMean)
+                            self.YposFitMaskedMean[i].set(yposFitMaskedMean)
 
                     self.Charge[i].set(charge)
 
                     atLeastOneWindowUpdated = True
-
-                    self.EmptyShotsSinceLast[i].set(0)  # Reset counter
+                    if not self._hardDisableChargeReject:
+                        self.EmptyShotsSinceLast[i].set(0)  # Reset counter
                 else:
                     # Reject the shot as charge below threshold
                     empty_shots_since_last_current = self.EmptyShotsSinceLast[i].get()
                     self.EmptyShotsSinceLast[i].set(empty_shots_since_last_current + 1)  # Increment counter
 
-                # Update only when either bunch had sufficient charge
-                # This is slow: TODO: Add a mechanism to update on only every
-                # nth waveform or maybe once per second.
-                # Or maybe just put it in a separate stream with dropping fifo?
-                # In which case however the logic for only update on non empty
-                # won't work. So better keep it here.
-                if atLeastOneWindowUpdated:
-                    for j in range(4):
-                        self.WaveformData[j].set(waveformData[j, :], write=True)
+            # Update only when either bunch had sufficient charge
+            # This is slow: TODO: Add a mechanism to update on only every
+            # nth waveform or maybe once per second.
+            # Or maybe just put it in a separate stream with dropping fifo?
+            # In which case however the logic for only update on non empty
+            # won't work. So better keep it here.
+            if atLeastOneWindowUpdated or self._hardDisableChargeReject:
+                for j in range(4):
+                    self.WaveformData[j].set(waveformData[j, :], write=True)
+
+                # TODO: Can we replace charge threshold with a check of
+                # some information in the metadata? That would be optimal.
+                # For now: Add option to hard disable rejection by charge
+                # threshold and record data for empty shots as well but
+                # add an option in the GUI to reject by charge.
+
+                # Write metadata buffer from last shot
+                self.Metadata.set(meta, write=True)
+
+                # Write results to results vector
+                resultsVector += [meta[2]]  # Shot ID
+                self.ResultsVector.set(np.array(resultsVector))
 
             # Set the flag
             self.NewDataReady.set(True)

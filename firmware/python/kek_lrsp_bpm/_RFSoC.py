@@ -19,7 +19,7 @@ class RFSoC(pr.Device):
 
         self.add(socCore.AxiSocCore(
             offset      = 0x0000_0000,
-            numDmaLanes = 2,
+            numDmaLanes = 3,
             # expand      = True,
         ))
 
@@ -28,4 +28,8 @@ class RFSoC(pr.Device):
             sampleRate = sampleRate,  # Units of Hz, depends on PLL config
             expand     = True,
             enabled    = False,  # Do not configure until after DSP clock stable
+        ))
+
+        self.add(rfsoc.EvrGty(
+            offset     = 0xB000_0000,
         ))
