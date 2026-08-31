@@ -169,6 +169,8 @@ begin
             DATA_BYTES_G        => 1,   -- 8 bit per transmission
             RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
             SAFE_BUFFS_G        => true,
+            SEGS_EN_G           => true,
+            SEGS_ADDR_WIDTH_G   => 4, -- TODO: Check value
             -- AXI-Stream Configurations
             FIFO_MEMORY_TYPE_G  => "block",
             FIFO_ADDR_WIDTH_G   => 9,   -- TODO: Adjust?
@@ -181,9 +183,11 @@ begin
             dataRst         => rst,
             dataValid       => dataR.writeEn,
             dataValue       => dataR.sdData,  -- Data line shared between buffers, use write enable to only capture valid data
+            dataSegWr       => (others => '0'),  -- TODO: Set according to segment byte
             dataFrameTxLast => dataR.recDone,
             -- Trigger for readout over axis
             dataRdTrig      => readoutTrigSync,
+            dataSegRd       => (others => '0'),  -- TODO: Set to register value
             -- AXI-Lite interface (axilClk domain)
             axilClk         => axilClk,
             axilRst         => axilRst,
