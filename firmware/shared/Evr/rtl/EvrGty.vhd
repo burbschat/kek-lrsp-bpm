@@ -135,6 +135,8 @@ architecture mapping of EvrGty is
 
     signal rxCdrStable : sl;
 
+    signal dummySdTrigSync : sl;
+
     -- Enable for ILA debugging
     -- attribute keep       : string;
     -- attribute mark_debug : string;
@@ -221,10 +223,16 @@ architecture mapping of EvrGty is
         rxMCommaAlignEn : sl;
         rxPCommaAlignEn : sl;
 
-        evrTxMode      : evrTxModeType;
-        evrTxModeReg   : slv(7 downto 0);
-        dummyData      : slv(7 downto 0);
-        dummyDataComma : slv(7 downto 0);
+        -- Dummy EV bits transmissions
+        evrTxMode        : evrTxModeType;
+        evrTxModeReg     : slv(7 downto 0);
+        dummyEvData      : slv(7 downto 0);
+        dummyEvDataComma : slv(7 downto 0);
+
+        -- Dummy DbSd bits transmissions
+        dummySdTrig : sl;
+        dummySdData : slv(31 downto 0);  -- TODO: Use axi ram for larger buffer
+        dummySdSeg  : slv(7 downto 0);
 
         -- loopback : slv(2 downto 0);
 
@@ -258,18 +266,51 @@ architecture mapping of EvrGty is
         rxMCommaAlignEn => '1',
         rxPCommaAlignEn => '1',
 
-        evrTxMode      => SILENT,
-        evrTxModeReg   => (others => '0'),  -- Same es evrTxMode but as slv (required for register mapping)
-        dummyData      => x"50",  -- Dummy data to transmit when no comma is transmitted
-        dummyDataComma => x"BC",  -- Comma to insert when transmitting dummy data for testing
+        -- Dummy EV bits transmissions
+        evrTxMode        => SILENT,
+        evrTxModeReg     => (others => '0'),  -- Same es evrTxMode but as slv (required for register mapping)
+        dummyEvData      => x"50",  -- Dummy data to transmit when no comma is transmitted
+        dummyEvDataComma => x"BC",  -- Comma to insert when transmitting dummy data for testing
+
+        -- Dummy DbSd bits transmissions
+        dummySdTrig => '0',
+        dummySdData => x"76543210",
+        dummySdSeg  => (others => '0'),
 
         -- loopback => "000",              -- 0b000 is normal operation
 
         axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
         axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C);
 
+
+    type TxDummySdStateType is (
+        IDLE_S,
+        LEAD_S,
+        SEG_S,
+        TX_S,
+        TRAIL_S);
+
+    type TxDummyRegType is record
+        txData        : slv(15 downto 0);
+        txDataK       : slv(1 downto 0);
+        transmitComma : sl;
+        sdState       : TxDummySdStateType;
+        sdCycleCount  : slv(31 downto 0);
+    end record TxDummyRegType;
+
+    constant TX_DUMMY_REG_INIT_C : TxDummyRegType := (
+        txData        => (others => '0'),
+        txDataK       => (others => '0'),
+        transmitComma => '0',
+        sdState       => IDLE_S,
+        sdCycleCount  => (others => '0'));
+
+
     signal r   : RegType := REG_INIT_C;
     signal rin : RegType;
+
+    signal txDummyR   : TxDummyRegType := TX_DUMMY_REG_INIT_C;
+    signal txDummyRin : TxDummyRegType;
 
 begin
     -- Serial data outputs
@@ -420,39 +461,7 @@ begin
             axilReadMaster  => axilReadMasters(AXIL_DRP_INDEX_C),
             axilReadSlave   => axilReadSlaves(AXIL_DRP_INDEX_C),
             axilWriteMaster => axilWriteMasters(AXIL_DRP_INDEX_C),
-            axilWriteSlave  => axilWriteSlaves(AXIL_DRP_INDEX_C)
-            );
-
-
-    ----------------------
-    -- Transmit processing
-    ----------------------
-
-    -- Generate some test data
-    TX_PROC : process(txUsrClk)
-        variable switch : boolean;
-    begin
-        if rising_edge(txUsrClk) then
-            -- Pull all lines low if reset asserted or tx not yet ready or TX set to silent
-            if gtReset = '1' or txResetDone /= '1' or r.evrTxMode = SILENT then
-                txData  <= (others => '0');
-                txDataK <= (others => '0');
-            elsif r.evrTxMode = DUMMY then
-                -- Transmit dummy data with a comma every other tranmission
-                if switch = true then
-                    txData  <= r.dummyData & r.dummyDataComma;  -- Comma in lower 8 bits
-                    txDataK <= "01";    -- Lower byte is comma
-                    switch  := false;   -- Move to send only data state
-                else
-                    txData  <= r.dummyData & r.dummyData;
-                    txDataK <= "00";    -- Now commas here
-                    switch  := true;    -- Move to send data + comma state
-                end if;
-            elsif r.evrTxMode = RX_MIRROR then
-            -- TODO: This would require a fifo between rx/tx. Implement this if it is really necessary.
-            end if;
-        end if;
-    end process TX_PROC;
+            axilWriteSlave  => axilWriteSlaves(AXIL_DRP_INDEX_C));
 
 
     ---------------------
@@ -487,9 +496,10 @@ begin
         v := r;
 
         -- Reset strobes
-        v.softRst   := '0';
-        v.rxSoftRst := '0';
-        v.txSoftRst := '0';
+        v.softRst     := '0';
+        v.rxSoftRst   := '0';
+        v.txSoftRst   := '0';
+        v.dummySdTrig := '0';
 
         ----------------------------------------------------------------------
         --                AXI-Lite Register Logic
@@ -538,9 +548,14 @@ begin
         axiSlaveRegister (axilEp, x"0c", 9, v.rxMCommaAlignEn);  -- GTY RX align on minus comma enable
         axiSlaveRegister (axilEp, x"0c", 10, v.rxPCommaAlignEn);  -- GTY RX align on plus comma enable
         v.evrTxModeReg := conv_std_logic_vector(evrTxModeType'pos(r.evrTxMode), r.evrTxModeReg'length);
+
         axiSlaveRegister (axilEp, x"10", 0, v.evrTxModeReg);  -- Mode for transmitting
-        axiSlaveRegister (axilEp, x"10", 8, v.dummyData);  -- Dummy data to transmit for testing
-        axiSlaveRegister (axilEp, x"10", 16, v.dummyDataComma);  -- Comma to insert when transmitting dummy data for testing
+        axiSlaveRegister (axilEp, x"10", 8, v.dummyEvData);  -- Dummy data to transmit for testing
+        axiSlaveRegister (axilEp, x"10", 16, v.dummyEvDataComma);  -- Comma to insert when transmitting dummy data for testing
+
+        axiSlaveRegister (axilEp, x"14", 0, v.dummySdData);  -- 4 bytes of data for dummy SD transmission
+        axiSlaveRegister (axilEp, x"18", 0, v.dummySdSeg);   -- Segment byte
+        axiSlaveRegister (axilEp, x"1c", 0, v.dummySdTrig);  -- Software trigger dummy SD transmission
 
         -- axiSlaveRegister (axilEp, x"14", 0, v.loopback);  -- GTY loopback mode
 
@@ -568,5 +583,108 @@ begin
             r <= rin after TPD_G;
         end if;
     end process seq;
+
+
+    ----------------------
+    -- Transmit processing
+    ----------------------
+    -- TODO: Consider refactoring into a separate Evm (event master) module?
+
+    U_dummySdTrigSync : entity surf.SynchronizerOneShot
+        generic map(
+            TPD_G => TPD_G)
+        port map(
+            clk     => txUsrClk,
+            dataIn  => r.dummySdTrig,
+            dataOut => dummySdTrigSync);
+
+    -- Generate some test data
+    -- Dont really care about synchronization for most registers as they should
+    -- be stable for many clocks...
+    txDummyComb : process(txDummyR, r, gtReset, txResetDone, dummySdTrigSync)
+        variable v : TxDummyRegType;
+    begin
+
+        -- Latch the current value
+        v := txDummyR;
+
+        -- Reset strobes
+        v.txData  := (others => '0');
+        v.txDataK := (others => '0');
+
+        -- Set event or comma in lower byte
+        if gtReset = '1' or txResetDone /= '1' or r.evrTxMode = SILENT then
+            -- Pull all lines low if reset asserted or tx not yet ready or TX set to silent
+            v.txData  := (others => '0');
+            v.txDataK := (others => '0');
+        elsif r.evrTxMode = DUMMY then
+            -- Transmit dummy data with a comma every other tranmission
+            if txDummyR.transmitComma = '1' then
+                v.txData(7 downto 0) := r.dummyEvDataComma;  -- Comma in lower 8 bits
+                v.txDataK(0)         := '1';  -- Lower byte is comma
+                v.transmitComma      := '0';  -- Move to send only data state
+            else
+                v.txData(7 downto 0) := r.dummyEvData;
+                v.txDataK(0)         := '0';  -- Now commas here
+                v.transmitComma      := '1';  -- Move to send data + comma state
+            end if;
+        elsif r.evrTxMode = RX_MIRROR then
+        -- TODO: This would require a fifo between rx/tx. Implement this if it is really necessary.
+        end if;
+
+        -- Dummy SD transmission
+        case txDummyR.sdState is
+            when IDLE_S =>
+                -- Initiate dummy transmission if triggered
+                if dummySdTrigSync = '1' then
+                    v.sdState := LEAD_S;
+                end if;
+            when LEAD_S =>
+                -- Transmit start byte
+                v.txData(15 downto 8) := x"1C";
+                v.txDataK(1)          := '1';
+                -- Transmit segment byte next
+                v.sdState             := SEG_S;
+            when SEG_S =>
+                -- Transmit the segment byte
+                v.txData(15 downto 8) := r.dummySdSeg;
+                -- Preset counter (transmit 32 / 8 = 4 bytes of dummy data), but only
+                -- transmit every second cycle.
+                -- Could omit the -1 to get one cycle of DB after the end byte.
+                v.sdCycleCount        := toSlv(4*2-1, 32);
+                -- Start transmitting data
+                v.sdState             := TX_S;
+            when TX_S =>
+                -- TODO: For now buffer has fixed length to fit one 32 bit AXI register.
+                -- Add AXI RAM for larger buffers (later).
+                -- Transmit only every second (counter even) cycle
+                if txDummyR.sdCycleCount(0) = '0' then
+                    v.txData(15 downto 8) := r.dummySdData(conv_integer(txDummyR.sdCycleCount)*8+7 downto conv_integer(txDummyR.sdCycleCount)*8);
+                    v.txDataK(1)          := '1';
+                else
+                -- TODO: Add DB data?
+                end if;
+                v.sdCycleCount := txDummyR.sdCycleCount - 1;
+                if txDummyR.sdCycleCount = 0 then
+                    v.sdState := TRAIL_S;
+                end if;
+            when TRAIL_S =>
+                -- Transmit end byte
+                v.txData(15 downto 8) := x"3C";
+                v.txDataK(1)          := '1';
+                -- TODO: Implement trailing checksum bytes
+                -- Return to idle
+                v.sdState             := IDLE_S;
+        end case;
+
+    end process txDummyComb;
+
+
+    txDummySeq : process (txUsrClk) is
+    begin
+        if rising_edge(txUsrClk) then
+            txDummyR <= txDummyRin after TPD_G;
+        end if;
+    end process txDummySeq;
 
 end architecture mapping;
