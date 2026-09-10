@@ -677,6 +677,13 @@ begin
                 v.sdState             := IDLE_S;
         end case;
 
+        -- Outputs
+        txData  <= txDummyR.txData;
+        txDataK <= txDummyR.txDataK;
+
+        -- Register the variable for next clock cycle
+        txDummyRin <= v;
+
     end process txDummyComb;
 
 
