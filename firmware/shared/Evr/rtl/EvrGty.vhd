@@ -649,20 +649,19 @@ begin
                 -- Transmit the segment byte
                 v.txData(15 downto 8) := r.dummySdSeg;
                 v.txDataK(1)          := '0';
-                -- Preset counter (transmit 32 / 8 = 4 bytes of dummy data), but only
-                -- transmit every second cycle.
-                -- Do not subtract 1 to get one cycle of DB after the last data byte
-                -- before transmitting the end comma.
-                -- (which seems to be what we want here)!
-                v.sdCycleCount        := toSlv(4*2, 32);
+                -- 4 SD bytes, one every other cycle.
+                -- Data cycles: 7, 5, 3, 1
+                -- SD cycles:   6, 4, 2, 0
+                v.sdCycleCount        := toSlv(7, 32);
                 -- Start transmitting data
                 v.sdState             := TX_S;
             when TX_S =>
                 -- TODO: For now buffer has fixed length to fit one 32 bit AXI register.
                 -- Add AXI RAM for larger buffers (later).
-                -- Transmit only every second (counter even) cycle
-                if txDummyR.sdCycleCount(0) = '0' then
-                    v.txData(15 downto 8) := r.dummySdData(conv_integer(txDummyR.sdCycleCount)*8+7 downto conv_integer(txDummyR.sdCycleCount)*8);
+                -- Transmit only every second (counter odd) cycle
+                if txDummyR.sdCycleCount(0) = '1' then
+                    -- Discard lower counter bit to get correct indicies
+                    v.txData(15 downto 8) := r.dummySdData(conv_integer(txDummyR.sdCycleCount(31 downto 1))*8+7 downto conv_integer(txDummyR.sdCycleCount(31 downto 1))*8);
                     v.txDataK(1)          := '0';
                 else
                 -- TODO: Add DB data?
