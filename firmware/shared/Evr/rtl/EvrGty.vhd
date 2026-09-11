@@ -651,8 +651,10 @@ begin
                 v.txDataK(1)          := '0';
                 -- Preset counter (transmit 32 / 8 = 4 bytes of dummy data), but only
                 -- transmit every second cycle.
-                -- Could omit the -1 to get one cycle of DB after the end byte.
-                v.sdCycleCount        := toSlv(4*2-1, 32);
+                -- Do not subtract 1 to get one cycle of DB after the last data byte
+                -- before transmitting the end comma.
+                -- (which seems to be what we want here)!
+                v.sdCycleCount        := toSlv(4*2, 32);
                 -- Start transmitting data
                 v.sdState             := TX_S;
             when TX_S =>
