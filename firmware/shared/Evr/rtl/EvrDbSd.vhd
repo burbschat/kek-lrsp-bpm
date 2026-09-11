@@ -240,8 +240,9 @@ begin
                         -- do not know if the current data is SD or DB.
                         if dataK = '1' and data = SD_START_K then
                             -- It appears that the transmission following the
-                            -- align K is always SD
-                            v.isSd      := '1';
+                            -- align K is always DB. So set isSd to 0 for the 
+                            -- next cycle.
+                            v.isSd      := '0';
                             -- Should always be 1 after initial start K
                             -- received. Consider setting back to 0 if e.g.
                             -- checksums fail (indicating misalignment)?
@@ -261,7 +262,7 @@ begin
                             -- Move back to idle to wait for next start K
                             v.state   := IDLE_S;
                         -- Otherwise, if data is SD, record it into buffer
-                        elsif v.isSd = '1' then
+                        elsif dataR.isSd = '1' then
                             v.recBytesCnt := dataR.recBytesCnt - 1;  -- Decrement counter
                             v.sdData      := data;  -- Set data
                             v.writeEn     := '1';   -- Enable write to buffer
@@ -273,7 +274,7 @@ begin
                 -- is no SD transmission ongoing??? A but at least from ILA
                 -- debug it seems like every second two bytes are 0 unless
                 -- transmission ongoing so probably not.
-                if not (v.isSd = '1') then
+                if not (dataR.isSd = '1') then
                     v.distrBus := data;
                 end if;
             else
