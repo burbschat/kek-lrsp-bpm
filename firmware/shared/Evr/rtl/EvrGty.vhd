@@ -648,6 +648,7 @@ begin
             when SEG_S =>
                 -- Transmit the segment byte
                 v.txData(15 downto 8) := r.dummySdSeg;
+                v.txDataK(1)          := '0';
                 -- Preset counter (transmit 32 / 8 = 4 bytes of dummy data), but only
                 -- transmit every second cycle.
                 -- Could omit the -1 to get one cycle of DB after the end byte.
@@ -660,7 +661,7 @@ begin
                 -- Transmit only every second (counter even) cycle
                 if txDummyR.sdCycleCount(0) = '0' then
                     v.txData(15 downto 8) := r.dummySdData(conv_integer(txDummyR.sdCycleCount)*8+7 downto conv_integer(txDummyR.sdCycleCount)*8);
-                    v.txDataK(1)          := '1';
+                    v.txDataK(1)          := '0';
                 else
                 -- TODO: Add DB data?
                 end if;
