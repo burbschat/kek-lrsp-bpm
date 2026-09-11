@@ -642,7 +642,7 @@ begin
                     v.sdState := LEAD_S;
                 end if;
             when LEAD_S =>
-                -- Use flag to delay by one cycle to keep the correct alignment.
+                -- Use flag to delay next state by one cycle to keep the correct alignment.
                 v.sdSegWait := '1';
                 if txDummyR.sdSegWait = '0' then
                     -- Transmit start byte
@@ -655,15 +655,22 @@ begin
                     v.sdState   := SEG_S;
                 end if;
             when SEG_S =>
-                -- Transmit the segment byte
-                v.txData(15 downto 8) := r.dummySdSeg;
-                v.txDataK(1)          := '0';
-                -- 4 SD bytes, one every other cycle.
-                -- DB cycles: 7, 5, 3, 1
-                -- SD cycles: 6, 4, 2, 0
-                v.sdCycleCount        := toSlv(8-1, 32);
-                -- Start transmitting data
-                v.sdState             := TX_S;
+                -- Use flag to delay next state by one cycle to keep the correct alignment.
+                v.sdSegWait := '1';
+                if txDummyR.sdSegWait = '0' then
+                    -- Transmit the segment byte
+                    v.txData(15 downto 8) := r.dummySdSeg;
+                    v.txDataK(1)          := '0';
+                else
+                    -- Reset flag
+                    v.sdSegWait := '0';
+                    -- 4 SD bytes, one every other cycle.
+                    -- DB cycles: 7, 5, 3, 1
+                    -- SD cycles: 6, 4, 2, 0
+                    v.sdCycleCount        := toSlv(8-1, 32);
+                    -- Start transmitting data
+                    v.sdState             := TX_S;
+                end if;
             when TX_S =>
                 -- TODO: For now buffer has fixed length to fit one 32 bit AXI register.
                 -- Add AXI RAM for larger buffers (later).
