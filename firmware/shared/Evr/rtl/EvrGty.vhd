@@ -295,6 +295,7 @@ architecture mapping of EvrGty is
         txDataK       : slv(1 downto 0);
         transmitComma : sl;
         sdState       : TxDummySdStateType;
+        sdSegWait     : sl;
         sdCycleCount  : slv(31 downto 0);
     end record TxDummyRegType;
 
@@ -303,6 +304,7 @@ architecture mapping of EvrGty is
         txDataK       => (others => '0'),
         transmitComma => '0',
         sdState       => IDLE_S,
+        sdSegWait     => '0',
         sdCycleCount  => (others => '0'));
 
 
@@ -640,19 +642,26 @@ begin
                     v.sdState := LEAD_S;
                 end if;
             when LEAD_S =>
-                -- Transmit start byte
-                v.txData(15 downto 8) := x"1C";
-                v.txDataK(1)          := '1';
-                -- Transmit segment byte next
-                v.sdState             := SEG_S;
+                -- Use flag to delay by one cycle to keep the correct alignment.
+                v.sdSegWait := '1';
+                if txDummyR.sdSegWait = '0' then
+                    -- Transmit start byte
+                    v.txData(15 downto 8) := x"1C";
+                    v.txDataK(1)          := '1';
+                else
+                    -- Reset flag
+                    v.sdSegWait := '0';
+                    -- Transmit segment byte next
+                    v.sdState   := SEG_S;
+                end if;
             when SEG_S =>
                 -- Transmit the segment byte
                 v.txData(15 downto 8) := r.dummySdSeg;
                 v.txDataK(1)          := '0';
                 -- 4 SD bytes, one every other cycle.
-                -- Data cycles: 7, 5, 3, 1
-                -- SD cycles:   6, 4, 2, 0
-                v.sdCycleCount        := toSlv(7, 32);
+                -- DB cycles: 7, 5, 3, 1
+                -- SD cycles: 6, 4, 2, 0
+                v.sdCycleCount        := toSlv(8-1, 32);
                 -- Start transmitting data
                 v.sdState             := TX_S;
             when TX_S =>
