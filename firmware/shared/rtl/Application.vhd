@@ -257,8 +257,7 @@ begin
          SYNTH_MODE_G         => "xpm",
          N_TRGS_G             => EVR_N_TRGS_C,
          SD_EN_G              => true,
-         SD_BUFF_DATA_BYTES_G => 1,     -- 1 byte per clock
-         SD_BUFF_ADDR_WIDTH   => 11,    -- Full 2048 byte buffer
+         SD_BUFF_ADDR_WIDTH   => 11,    -- Full 2048 byte buffer at 1 byte per word
          AXIL_BASE_ADDR_G     => AXIL_CONFIG_C(EVR_DEC_REG_INDEX_C).baseAddr
          )
       port map(

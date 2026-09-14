@@ -31,6 +31,7 @@ architecture testbed of EvrDecoderTb is
         dataTrigsK    : sl;
         cnt           : slv(31 downto 0);
         sdReadoutTrig : sl;
+        checks        : slv(15 downto 0);
     end record;
 
     constant REG_INIT_C : RegType := (
@@ -41,7 +42,8 @@ architecture testbed of EvrDecoderTb is
         dataTrigs     => (others => '0'),
         dataTrigsK    => '0',
         cnt           => (others => '0'),
-        sdReadoutTrig => '0');
+        sdReadoutTrig => '0',
+        checks        => (others => '1'));
 
 
     constant NUM_AXIL_MASTERS_C : natural          := 1;
@@ -97,11 +99,11 @@ begin
     --------------------------
     U_EvrDecoder : entity work.EvrDecoder
         generic map(
-            TPD_G                => TPD_C,
-            N_TRGS_G             => 2,
-            SD_BUFF_DATA_BYTES_G => 1,
-            SD_BUFF_ADDR_WIDTH   => 11,  -- Use smaller buffer for testing
-            AXIL_BASE_ADDR_G     => AXIL_CONFIG_C(0).baseAddr
+            TPD_G              => TPD_C,
+            N_TRGS_G           => 2,
+            SD_BUFF_ADDR_WIDTH => 11,   -- Use smaller buffer for testing
+            CHECKS_EN_G        => true,
+            AXIL_BASE_ADDR_G   => AXIL_CONFIG_C(0).baseAddr
             )
         port map(
             -- Serial data input
@@ -162,14 +164,24 @@ begin
             elsif (r.cnt >= 512) and (r.cnt < 1024) then
                 if r.cnt(0) = '1' then
                     v.dataDbSd := r.cnt(7 downto 0);  -- Lower 8 bits of counter
+                    -- Update the checksum
+                    v.checks := r.checks - v.dataDbSd;
                 else
                     v.dataDbSd := (others => '1');    -- Set DB to all ones
                 end if;
                 v.dataDbSdK := '0';
-            elsif r.cnt = 1024 then
+            elsif r.cnt = 1025 then
                 -- Transmission end marker
                 v.dataDbSd  := x"3C";
                 v.dataDbSdK := '1';
+            elsif r.cnt = 1027 then
+                -- Checksum LSB
+                v.dataDbSd  := r.checks(7 downto 0);
+                v.dataDbSdK := '0';
+            elsif r.cnt = 1029 then
+                -- Checksum MSB
+                v.dataDbSd  := r.checks(15 downto 8);
+                v.dataDbSdK := '0';
             else
                 v.dataDbSd  := (others => '0');
                 v.dataDbSdK := '0';

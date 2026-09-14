@@ -22,13 +22,13 @@ use work.AppPkg.all;
 
 entity EvrDecoder is
     generic (
-        TPD_G                : time     := 1 ns;
-        SYNTH_MODE_G         : string   := "inferred";
-        N_TRGS_G             : integer  := 16;  -- Number of mappable trigger outputs
-        SD_EN_G              : boolean  := true;
-        SD_BUFF_DATA_BYTES_G : positive := 1;  -- Adjust to transceiver data interface width
-        SD_BUFF_ADDR_WIDTH   : positive := 11;  -- Allocated SD buffer size
-        AXIL_BASE_ADDR_G     : slv(31 downto 0)
+        TPD_G              : time     := 1 ns;
+        SYNTH_MODE_G       : string   := "inferred";
+        N_TRGS_G           : integer  := 16;  -- Number of mappable trigger outputs
+        SD_EN_G            : boolean  := true;
+        SD_BUFF_ADDR_WIDTH : positive := 11;  -- Allocated SD buffer size
+        CHECKS_EN_G        : boolean  := true;  -- Enable checksum check
+        AXIL_BASE_ADDR_G   : slv(31 downto 0)
         );
     port (
         clk     : in sl;  -- User clock (rx data interface synchronous to this clock)
@@ -134,12 +134,12 @@ begin
 
     U_DBSD : entity work.EvrDbSd
         generic map(
-            TPD_G                => TPD_G,
-            SYNTH_MODE_G         => SYNTH_MODE_G,
-            SD_EN_G              => SD_EN_G,
-            SD_BUFF_DATA_BYTES_G => SD_BUFF_DATA_BYTES_G,
-            SD_BUFF_ADDR_WIDTH   => SD_BUFF_ADDR_WIDTH,
-            AXIL_BASE_ADDR_G     => AXIL_CONFIG_C(DBSD_INDEX_C).baseAddr
+            TPD_G              => TPD_G,
+            SYNTH_MODE_G       => SYNTH_MODE_G,
+            SD_EN_G            => SD_EN_G,
+            SD_BUFF_ADDR_WIDTH => SD_BUFF_ADDR_WIDTH,
+            CHECKS_EN_G        => CHECKS_EN_G,
+            AXIL_BASE_ADDR_G   => AXIL_CONFIG_C(DBSD_INDEX_C).baseAddr
             )
         port map(
             -- Inputs

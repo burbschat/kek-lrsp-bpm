@@ -134,6 +134,41 @@ class EvrDbSd(pr.Device):
         def SendSwTrig():
             self.SwTrig.set(1)
 
+        self.add(pr.RemoteVariable(
+            name         = 'checksRec',
+            description  = 'Checksum received from event master',
+            offset       = self._reg_base + 0x8,
+            bitSize      = 16,
+            mode         = 'RO',
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'checksLoc',
+            description  = 'Checksum computed locally',
+            offset       = self._reg_base + 0x8,
+            bitOffset    = 16,
+            bitSize      = 16,
+            mode         = 'RO',
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'checksMismatch',
+            description  = 'Sticky flag indicating a checksum mismatch was encountered',
+            offset       = self._reg_base + 0xC,
+            bitOffset    = 0,
+            bitSize      = 1,
+            mode         = 'RO',
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'checksMismatchClear',
+            description  = 'Write 1 to clear checksMismatch flag',
+            offset       = self._reg_base + 0xC,
+            bitOffset    = 1,
+            bitSize      = 1,
+            mode         = 'WO',
+        ))
+
     def getStateString(self, stateIdx):
         if stateIdx in self._statesEnum:
             return self._statesEnum[stateIdx]

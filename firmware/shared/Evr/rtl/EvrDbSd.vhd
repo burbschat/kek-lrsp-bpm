@@ -33,14 +33,14 @@ use work.AppPkg.all;
 
 entity EvrDbSd is
     generic(
-        TPD_G                : time            := 1 ns;
-        SYNTH_MODE_G         : string          := "inferred";
-        SD_EN_G              : boolean         := true;
-        SD_BUFF_DATA_BYTES_G : positive        := 1;  -- Adjust to transceiver data interface width
-        SD_BUFF_ADDR_WIDTH   : positive        := 11;  -- Allocated SD buffer size
-        SD_START_K           : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
-        SD_END_K             : slv(7 downto 0) := x"3C";  -- K.28.1
-        AXIL_BASE_ADDR_G     : slv(31 downto 0));
+        TPD_G              : time            := 1 ns;
+        SYNTH_MODE_G       : string          := "inferred";
+        SD_EN_G            : boolean         := true;
+        SD_BUFF_ADDR_WIDTH : positive        := 11;  -- Allocated SD buffer size
+        SD_START_K         : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
+        SD_END_K           : slv(7 downto 0) := x"3C";  -- K.28.1
+        CHECKS_EN_G        : boolean         := true;  -- Enable checksum check
+        AXIL_BASE_ADDR_G   : slv(31 downto 0));
     port (
         clk       : in sl;
         rst       : in sl;
@@ -74,47 +74,54 @@ architecture rtl of EvrDbSd is
 
     type StateType is (
         IDLE_S,
-        RECEIVE_S);
+        RECEIVE_S,
+        CHECKS_S);
 
     type DataRegType is record
-        state      : StateType;
-        alignDone  : sl;
-        isSd       : sl;
-        writeEn    : sl;
-        sdData     : slv(7 downto 0);
-        distrBus   : slv(7 downto 0);
-        seg        : slv(6 downto 0);
-        segLatched : sl;
-        recDone    : sl;
+        state             : StateType;
+        alignDone         : sl;
+        isSd              : sl;
+        writeEn           : sl;
+        sdData            : slv(7 downto 0);
+        distrBus          : slv(7 downto 0);
+        seg               : slv(6 downto 0);
+        segLatched        : sl;
+        recDone           : sl;
+        checksLoc         : slv(15 downto 0);  -- Local checksum
+        checksRec         : slv(15 downto 0);  -- Received checksum
+        checksRecByteStat : slv(1 downto 0);  -- Indicate if upper/lower byte received
+        checksMismatch    : sl;  -- Indicates checksum mismatch. Sticky flag, must be cleared by user.
     end record DataRegType;
 
     constant DATA_REG_INIT_C : DataRegType := (
-        state      => IDLE_S,
-        alignDone  => '0',
-        isSd       => '0',
-        writeEn    => '0',
-        sdData     => (others => '0'),
-        distrBus   => (others => '0'),
-        seg        => (others => '0'),
-        segLatched => '0',
-        recDone    => '0'
-        );
+        state             => IDLE_S,
+        alignDone         => '0',
+        isSd              => '0',
+        writeEn           => '0',
+        sdData            => (others => '0'),
+        distrBus          => (others => '0'),
+        seg               => (others => '0'),
+        segLatched        => '0',
+        recDone           => '0',
+        checksLoc         => (others => '1'),  -- Start value for checksum is all ones
+        checksRec         => (others => '0'),
+        checksRecByteStat => (others => '0'),
+        checksMismatch    => '0');
 
     type AxilRegType is record
-        axilReadSlave  : AxiLiteReadSlaveType;
-        axilWriteSlave : AxiLiteWriteSlaveType;
-        stateReg       : slv(7 downto 0);
-        softTrig       : sl;
-        testReg        : slv(31 downto 0);
+        axilReadSlave     : AxiLiteReadSlaveType;
+        axilWriteSlave    : AxiLiteWriteSlaveType;
+        stateReg          : slv(7 downto 0);
+        softTrig          : sl;
+        checksMismatchClr : sl;
     end record AxilRegType;
 
     constant AXIL_REG_INIT_C : AxilRegType := (
-        axilReadSlave  => AXI_LITE_READ_SLAVE_INIT_C,
-        axilWriteSlave => AXI_LITE_WRITE_SLAVE_INIT_C,
-        stateReg       => (others => '0'),
-        softTrig       => '0',
-        testReg        => (others => '1')
-        );
+        axilReadSlave     => AXI_LITE_READ_SLAVE_INIT_C,
+        axilWriteSlave    => AXI_LITE_WRITE_SLAVE_INIT_C,
+        stateReg          => (others => '0'),
+        softTrig          => '0',
+        checksMismatchClr => '0');
 
     signal dataR   : DataRegType := DATA_REG_INIT_C;
     signal dataRin : DataRegType;
@@ -126,6 +133,20 @@ architecture rtl of EvrDbSd is
 
     signal readoutTrigAsync : sl;
     signal readoutTrigSync  : sl;
+
+    signal checksSyncIn  : slv(32 downto 0);
+    signal checksSyncOut : slv(32 downto 0);
+
+    signal checksRecSync      : slv(15 downto 0);
+    signal checksLocSync      : slv(15 downto 0);
+    signal checksMismatchSync : sl;
+
+    signal checksMismatchClr     : sl;
+    signal checksMismatchClrSync : sl;
+
+    -- Fix to one byte per clock. Buffer technically supports more but the
+    -- checksumming for now is only implemented for 1 byte per clock.
+    constant SD_BUFF_DATA_BYTES_C : positive := 1;
 
     constant NUM_AXIL_MASTERS_C : natural := 2;
     constant FB_INDEX_C         : natural := 0;  -- Two slots used at this index and this index + 1
@@ -169,7 +190,7 @@ begin
             SYNTH_MODE_G        => SYNTH_MODE_G,
             MEMORY_TYPE_G       => "block",
             COMMON_CLK_G        => false,
-            DATA_BYTES_G        => SD_BUFF_DATA_BYTES_G,
+            DATA_BYTES_G        => SD_BUFF_DATA_BYTES_C,
             RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,
             -- AXI-Stream Configurations
             FIFO_MEMORY_TYPE_G  => "block",
@@ -202,6 +223,7 @@ begin
             axisMaster      => axisMaster,
             axisSlave       => axisSlave);
 
+
     U_SoftTrigSync : entity surf.SynchronizerOneShot
         generic map(
             TPD_G => TPD_G)
@@ -211,7 +233,33 @@ begin
             dataIn  => readoutTrigAsync,
             dataOut => readoutTrigSync);
 
-    dataComb : process(dataR, dataValid, data, dataK, dataFrameRxLast)
+    -- Synchronize checksum registers from data to axil process
+    U_SyncVecChecks : entity surf.SynchronizerVector
+        generic map (
+            TPD_G   => TPD_G,
+            WIDTH_G => 33)
+        port map (
+            clk     => axilClk,
+            dataIn  => checksSyncIn,
+            dataOut => checksSyncOut);
+
+    checksSyncIn(15 downto 0)  <= dataR.checksRec;
+    checksSyncIn(31 downto 16) <= dataR.checksLoc;
+    checksSyncIn(32)           <= dataR.checksMismatch;
+    checksRecSync              <= checksSyncOut(15 downto 0);
+    checksLocSync              <= checksSyncOut(31 downto 16);
+    checksMismatchSync         <= checksSyncOut(32);
+
+    -- Synchronize checksum registers from data to axil process
+    U_SyncChecksMismatchClr : entity surf.SynchronizerOneShot
+        generic map (
+            TPD_G => TPD_G)
+        port map (
+            clk     => clk,
+            dataIn  => checksMismatchClr,
+            dataOut => checksMismatchClrSync);
+
+    dataComb : process(dataR, dataValid, data, dataK, dataFrameRxLast, checksMismatchClrSync)
         variable dataVar : slv(7 downto 0);
         variable v       : DataRegType;
     begin
@@ -221,6 +269,11 @@ begin
         -- Reset strobes
         v.recDone := '0';
         v.writeEn := '0';               -- Default to no write
+
+        -- Clear checksum mismatch flag if requested
+        if checksMismatchClrSync = '1' then
+            v.checksMismatch := '0';
+        end if;
 
         if dataValid = '1' then         -- Do nothing if data invalid
             dataVar := data;
@@ -253,19 +306,27 @@ begin
                             v.state := RECEIVE_S;
                         end if;
                     when RECEIVE_S =>
-                        -- Check for transmission end K or buffer full
+                        -- Check for transmission end K or buffer full.
                         if (dataK = '1' and data = SD_END_K) or (dataFrameRxLast = '1') then
                             if dataFrameRxLast = '0' then
                                 -- Strobe receive done to let the buffer know we are done
                                 -- but only if it not already knows (i.e. buffer full).
                                 v.recDone := '1';
                             end if;
+
                             -- Reset segment latched flag
                             v.segLatched := '0';
-                            -- Move back to idle to wait for next start K
-                            v.state      := IDLE_S;
-                        -- Otherwise, if data is SD, record it into buffer
-                        elsif dataR.isSd = '1' then
+                            if CHECKS_EN_G then
+                                -- Receive and check the checksums
+                                v.state := CHECKS_S;
+                            else
+                                -- Move back to idle to wait for next start K
+                                v.state := IDLE_S;
+                            end if;
+                        -- Otherwise, if data is SD, record it into buffer.
+                        -- There should be no K characters here per the protocol but
+                        -- check that the flag is zero just in case...(?)
+                        elsif (dataR.isSd = '1') and (dataK = '0') then
                             if dataR.segLatched = '0' then
                                 -- First byte indicates the segment
                                 -- TODO: I *think* the segment byte does not count into the number
@@ -275,7 +336,42 @@ begin
                             else
                                 v.sdData  := data;  -- Set data
                                 v.writeEn := '1';   -- Enable write to buffer
+
+                                -- Compute checksum if enabled
+                                if CHECKS_EN_G then
+                                    -- Subtract data (8 bit) from the checksum register (16 bit)
+                                    v.checksLoc := v.checksLoc - data;
+                                end if;
                             end if;
+                        end if;
+                    when CHECKS_S =>
+                        -- TODO(?): Checksums will never work when the buffer is smaller than
+                        -- the amount of received data. I guess we don't really care here...
+                        if dataR.checksRecByteStat /= b"11" then
+                            -- Receive the checksum
+                            if dataR.isSd = '1' then
+                                -- LSB comes first, MSB comes second
+                                if dataR.checksRecByteStat(0) = '0' then
+                                    v.checksRec(7 downto 0) := data;
+                                    v.checksRecByteStat(0)  := '1';
+                                elsif dataR.checksRecByteStat(1) = '0' then
+                                    v.checksRec(15 downto 8) := data;
+                                    v.checksRecByteStat(1)   := '1';
+                                end if;
+                            end if;
+                        else
+                            -- Check the checksum
+                            if dataR.checksRec /= dataR.checksLoc then
+                                -- Set checksum mismatch flag. This is a sticky flag which has
+                                -- to be cleared by the user over the axil register interface.
+                                v.checksMismatch := '1';
+                            end if;
+                            -- Reset MSB/LSB received flags
+                            v.checksRecByteStat := (others => '0');
+                            -- Reset the locally computed of the checksum
+                            v.checksLoc         := (others => '1');
+                            -- Move back to idle to wait for next start K
+                            v.state             := IDLE_S;
                         end if;
                 end case;
 
@@ -312,7 +408,8 @@ begin
     end process dataSeq;
 
 
-    axilComb : process(axilR, axilReadMasters(REG_INDEX_C), axilWriteMasters(REG_INDEX_C), axilRst, dataR.state)
+    axilComb : process(axilR, axilReadMasters(REG_INDEX_C), axilWriteMasters(REG_INDEX_C), axilRst,
+                       dataR.state, checksRecSync, checksLocSync, checksMismatchSync)
         variable v      : AxilRegType;
         variable axilEp : AxiLiteEndpointType;
     begin
@@ -320,7 +417,8 @@ begin
         v := axilR;
 
         -- Reset strobes
-        v.softTrig := '0';
+        v.softTrig          := '0';
+        v.checksMismatchClr := '0';
 
         ------------------------
         -- AXI-Lite Transactions
@@ -331,7 +429,10 @@ begin
 
         axiSlaveRegisterR(axilEp, x"0", 0, axilR.stateReg);
         axiSlaveRegister (axilEp, x"4", 0, v.softTrig);
-        axiSlaveRegister (axilEp, x"8", 0, v.testReg);
+        axiSlaveRegisterR(axilEp, x"8", 0, checksRecSync);
+        axiSlaveRegisterR(axilEp, x"8", 16, checksLocSync);
+        axiSlaveRegisterR(axilEp, x"C", 0, checksMismatchSync);
+        axiSlaveRegister (axilEp, x"C", 1, v.checksMismatchClr);
 
         -- Close the transaction
         axiSlaveDefault(axilEp, v.axilWriteSlave, v.axilReadSlave, AXI_RESP_DECERR_C);
@@ -341,6 +442,9 @@ begin
         -- Update state register
         -- Surely I'll get away with this...
         v.stateReg := conv_std_logic_vector(StateType'pos(dataR.state), axilR.stateReg'length);
+
+        -- Outputs
+        checksMismatchClr <= axilR.checksMismatchClr;
 
         -- Reset (synchronous)
         if (axilRst = '1') then
