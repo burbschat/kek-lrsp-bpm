@@ -301,6 +301,9 @@ begin
                             -- checksums fail (indicating misalignment)?
                             v.alignDone := '1';
 
+                            -- Reset the locally computed of the checksum
+                            v.checksLoc := (others => '1');
+
                             -- Preset counter
                             -- Move to receive state
                             v.state := RECEIVE_S;
@@ -368,8 +371,6 @@ begin
                             end if;
                             -- Reset MSB/LSB received flags
                             v.checksRecByteStat := (others => '0');
-                            -- Reset the locally computed of the checksum
-                            v.checksLoc         := (others => '1');
                             -- Move back to idle to wait for next start K
                             v.state             := IDLE_S;
                         end if;
