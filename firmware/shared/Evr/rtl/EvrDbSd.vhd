@@ -33,13 +33,14 @@ use work.AppPkg.all;
 
 entity EvrDbSd is
     generic(
-        TPD_G              : time            := 1 ns;
-        SYNTH_MODE_G       : string          := "inferred";
-        SD_EN              : boolean         := true;
-        SD_BUFF_ADDR_WIDTH : integer         := 11;  -- Allocated SD buffer size
-        SD_START_K         : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
-        SD_END_K           : slv(7 downto 0) := x"3C";  -- K.28.1
-        AXIL_BASE_ADDR_G   : slv(31 downto 0));
+        TPD_G                : time            := 1 ns;
+        SYNTH_MODE_G         : string          := "inferred";
+        SD_EN_G              : boolean         := true;
+        SD_BUFF_DATA_BYTES_G : positive        := 1;  -- Adjust to transceiver data interface width
+        SD_BUFF_ADDR_WIDTH   : positive        := 11;  -- Allocated SD buffer size
+        SD_START_K           : slv(7 downto 0) := x"1C";  -- K.28.0, but mrf-openevr has 28.2=0x5C???
+        SD_END_K             : slv(7 downto 0) := x"3C";  -- K.28.1
+        AXIL_BASE_ADDR_G     : slv(31 downto 0));
     port (
         clk       : in sl;
         rst       : in sl;
@@ -76,25 +77,27 @@ architecture rtl of EvrDbSd is
         RECEIVE_S);
 
     type DataRegType is record
-        state       : StateType;
-        alignDone   : sl;
-        isSd        : sl;
-        writeEn     : sl;
-        recBytesCnt : slv(15 downto 0);
-        sdData      : slv(7 downto 0);
-        distrBus    : slv(7 downto 0);
-        recDone     : sl;
+        state      : StateType;
+        alignDone  : sl;
+        isSd       : sl;
+        writeEn    : sl;
+        sdData     : slv(7 downto 0);
+        distrBus   : slv(7 downto 0);
+        seg        : slv(6 downto 0);
+        segLatched : sl;
+        recDone    : sl;
     end record DataRegType;
 
     constant DATA_REG_INIT_C : DataRegType := (
-        state       => IDLE_S,
-        alignDone   => '0',
-        isSd        => '0',
-        writeEn     => '0',
-        recBytesCnt => (others => '0'),
-        sdData      => (others => '0'),
-        distrBus    => (others => '0'),
-        recDone     => '0'
+        state      => IDLE_S,
+        alignDone  => '0',
+        isSd       => '0',
+        writeEn    => '0',
+        sdData     => (others => '0'),
+        distrBus   => (others => '0'),
+        seg        => (others => '0'),
+        segLatched => '0',
+        recDone    => '0'
         );
 
     type AxilRegType is record
@@ -119,10 +122,10 @@ architecture rtl of EvrDbSd is
     signal axilR   : AxilRegType := AXIL_REG_INIT_C;
     signal axilRin : AxilRegType;
 
+    signal dataFrameRxLast : sl;
+
     signal readoutTrigAsync : sl;
     signal readoutTrigSync  : sl;
-
-    constant SD_BUFF_LEN : integer := 2**SD_BUFF_ADDR_WIDTH;
 
     constant NUM_AXIL_MASTERS_C : natural := 2;
     constant FB_INDEX_C         : natural := 0;  -- Two slots used at this index and this index + 1
@@ -160,17 +163,14 @@ begin
     -- Or the internal software trigger and external trigger
     readoutTrigAsync <= extTrig or axilR.softTrig;
 
-    U_AxiStreamFrameBuffer : entity surf.AxiStreamFrameBuffer
+    U_EvrSdBuffer : entity work.EvrSdBuffer
         generic map(
             TPD_G               => TPD_G,
             SYNTH_MODE_G        => SYNTH_MODE_G,
             MEMORY_TYPE_G       => "block",
             COMMON_CLK_G        => false,
-            DATA_BYTES_G        => 1,   -- 8 bit per transmission
-            RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,  -- One bytes = 8 bit words but buff_len is in bytes
-            SAFE_BUFFS_G        => true,
-            SEGS_EN_G           => true,
-            SEGS_ADDR_WIDTH_G   => 4, -- TODO: Check value
+            DATA_BYTES_G        => SD_BUFF_DATA_BYTES_G,
+            RAM_ADDR_WIDTH_G    => SD_BUFF_ADDR_WIDTH,
             -- AXI-Stream Configurations
             FIFO_MEMORY_TYPE_G  => "block",
             FIFO_ADDR_WIDTH_G   => 9,   -- TODO: Adjust?
@@ -183,11 +183,11 @@ begin
             dataRst         => rst,
             dataValid       => dataR.writeEn,
             dataValue       => dataR.sdData,  -- Data line shared between buffers, use write enable to only capture valid data
-            dataSegWr       => (others => '0'),  -- TODO: Set according to segment byte
+            dataSegIdx      => dataR.seg,
             dataFrameTxLast => dataR.recDone,
+            dataFrameRxLast => dataFrameRxLast,
             -- Trigger for readout over axis
             dataRdTrig      => readoutTrigSync,
-            dataSegRd       => (others => '0'),  -- TODO: Set to register value
             -- AXI-Lite interface (axilClk domain)
             axilClk         => axilClk,
             axilRst         => axilRst,
@@ -211,7 +211,7 @@ begin
             dataIn  => readoutTrigAsync,
             dataOut => readoutTrigSync);
 
-    dataComb : process(dataR, dataValid, data, dataK)
+    dataComb : process(dataR, dataValid, data, dataK, dataFrameRxLast)
         variable dataVar : slv(7 downto 0);
         variable v       : DataRegType;
     begin
@@ -228,7 +228,7 @@ begin
             -- State machine only required if SD turned on.
             -- SD_EN might as well be a register but if so one must ensure
             -- reset after writing to it to ensure re-align.
-            if SD_EN then
+            if SD_EN_G then
                 if dataR.alignDone = '1' then
                     v.isSd := not dataR.isSd;  -- Toggle
                 end if;
@@ -249,23 +249,33 @@ begin
                             v.alignDone := '1';
 
                             -- Preset counter
-                            v.recBytesCnt := slv(to_unsigned(SD_BUFF_LEN, v.recBytesCnt'length));
                             -- Move to receive state
-                            v.state       := RECEIVE_S;
+                            v.state := RECEIVE_S;
                         end if;
                     when RECEIVE_S =>
                         -- Check for transmission end K or buffer full
-                        if (dataK = '1' and data = SD_END_K) or (dataR.recBytesCnt = 0) then
-                            -- Strobe receive done which also resets the buffer
-                            -- that is queued for next recording
-                            v.recDone := '1';
+                        if (dataK = '1' and data = SD_END_K) or (dataFrameRxLast = '1') then
+                            if dataFrameRxLast = '0' then
+                                -- Strobe receive done to let the buffer know we are done
+                                -- but only if it not already knows (i.e. buffer full).
+                                v.recDone := '1';
+                            end if;
+                            -- Reset segment latched flag
+                            v.segLatched := '0';
                             -- Move back to idle to wait for next start K
-                            v.state   := IDLE_S;
+                            v.state      := IDLE_S;
                         -- Otherwise, if data is SD, record it into buffer
                         elsif dataR.isSd = '1' then
-                            v.recBytesCnt := dataR.recBytesCnt - 1;  -- Decrement counter
-                            v.sdData      := data;  -- Set data
-                            v.writeEn     := '1';   -- Enable write to buffer
+                            if dataR.segLatched = '0' then
+                                -- First byte indicates the segment
+                                -- TODO: I *think* the segment byte does not count into the number
+                                -- of received bytes.
+                                v.seg        := data(6 downto 0);
+                                v.segLatched := '1';
+                            else
+                                v.sdData  := data;  -- Set data
+                                v.writeEn := '1';   -- Enable write to buffer
+                            end if;
                         end if;
                 end case;
 

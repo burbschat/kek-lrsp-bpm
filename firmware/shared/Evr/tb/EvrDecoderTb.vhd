@@ -97,9 +97,11 @@ begin
     --------------------------
     U_EvrDecoder : entity work.EvrDecoder
         generic map(
-            TPD_G            => TPD_C,
-            N_TRGS_G         => 2,
-            AXIL_BASE_ADDR_G => AXIL_CONFIG_C(0).baseAddr
+            TPD_G                => TPD_C,
+            N_TRGS_G             => 2,
+            SD_BUFF_DATA_BYTES_G => 1,
+            SD_BUFF_ADDR_WIDTH   => 11,  -- Use smaller buffer for testing
+            AXIL_BASE_ADDR_G     => AXIL_CONFIG_C(0).baseAddr
             )
         port map(
             -- Serial data input
@@ -149,10 +151,14 @@ begin
             v.cnt := r.cnt + 1;
 
             -- Generate data
-            if r.cnt = 512 - 1 then
+            if r.cnt = 512 - 3 then
                 -- Transmission start marker
                 v.dataDbSd  := x"1C";
                 v.dataDbSdK := '1';
+            elsif r.cnt = 512 - 1 then
+                -- Segment indicator
+                v.dataDbSd  := x"01";
+                v.dataDbSdK := '0';
             elsif (r.cnt >= 512) and (r.cnt < 1024) then
                 if r.cnt(0) = '1' then
                     v.dataDbSd := r.cnt(7 downto 0);  -- Lower 8 bits of counter

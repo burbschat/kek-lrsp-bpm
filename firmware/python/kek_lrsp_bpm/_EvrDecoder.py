@@ -1,6 +1,66 @@
 import pyrogue as pr
 import surf.axi as axi
 
+
+class EvrSdBuffer(pr.Device):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.add(pr.RemoteVariable(
+            name         = 'AxisState',
+            description  = 'Current state of the AXI-Stream readout FSM',
+            offset       = 0x0,
+            bitSize      = 2,
+            bitOffset    = 0,
+            mode         = 'RO',
+            pollInterval = 1,
+            hidden       = True,
+            enum         = {
+                0: 'IDLE_S',
+                1: 'DONE_S',
+                2: 'MOVE_S',
+            },
+        ))
+
+        self.add(pr.RemoteVariable(
+            name         = 'DataFrameRxBusy',
+            description  = 'Set when currently receiving a frame.',
+            offset       = 0x0,
+            bitSize      = 1,
+            bitOffset    = 8,
+            mode         = 'RO',
+            pollInterval = 0,
+        ))
+
+        self.add(pr.RemoteVariable(
+            name        = 'RAM_ADDR_WIDTH_G',
+            description = 'Buffer RAM width configuration',
+            offset      = 0x4,
+            bitSize     = 8,
+            bitOffset   = 0,
+            mode        = 'RO',
+            disp        = '{:d}',
+        ))
+
+        self.add(pr.RemoteVariable(
+            name        = 'DATA_BYTES_G',
+            description = 'Frame data width (word size) configuration',
+            offset      = 0x4,
+            bitSize     = 8,
+            bitOffset   = 8,
+            mode        = 'RO',
+            disp        = '{:d}',
+        ))
+
+        self.add(pr.RemoteVariable(
+            name        = 'SoftTrig',
+            description = 'Software trigger request',
+            offset      = 0x8,
+            bitSize     = 1,
+            bitOffset   = 0,
+            mode        = 'WO',
+        ))
+
 class EvrDecoder(pr.Device):
     def __init__(
         self,
@@ -34,8 +94,8 @@ class EvrDbSd(pr.Device):
                 0x1: 'RECEIVE_S',
         }
 
-        self.add(axi.AxiStreamFrameBuffer(
-            name   = f'FrameBuff',
+        self.add(EvrSdBuffer(
+            name   = f'EvrSdBuffer',
             offset = 0x0,
         ))
 

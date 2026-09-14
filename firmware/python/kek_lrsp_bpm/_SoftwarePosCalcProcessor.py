@@ -955,14 +955,6 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             # Subframe tails from batcher
             data_tail = pl[btr_supfr_hdr_bytes + dat_bytes : btr_supfr_hdr_bytes + dat_bytes + btr_subfrm_tail_bytes]
             meta_tail = pl[-btr_supfr_hdr_bytes : ]
-            # For some reason the first byte is always 0x01. Probably part of
-            # the protocol but not documented. The byte is there in the serial
-            # data stream (as verified with ILA). Apparently not part of the 
-            # payload so ignore this byte.
-            meta = meta[1:]
-            # Always pad to fixed size (2048 byte). Transmissions may terminate
-            # early so the received buffer can be shorter.
-            meta = np.pad(meta, (0, max(0, 2048 - meta.size)))
             # Metadata is uint16 but big endian as it originates from some
             # PowerPC VNC device. Decode accordingly.
             meta = meta.view(">u2")
