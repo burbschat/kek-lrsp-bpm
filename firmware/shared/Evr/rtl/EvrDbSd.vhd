@@ -445,7 +445,9 @@ begin
         v.stateReg := conv_std_logic_vector(StateType'pos(dataR.state), axilR.stateReg'length);
 
         -- Outputs
-        checksMismatchClr <= axilR.checksMismatchClr;
+        axilReadSlaves(REG_INDEX_C)  <= axilR.axilReadSlave;
+        axilWriteSlaves(REG_INDEX_C) <= axilR.axilWriteSlave;
+        checksMismatchClr            <= axilR.checksMismatchClr;
 
         -- Reset (synchronous)
         if (axilRst = '1') then

@@ -67,6 +67,8 @@ architecture testbed of EvrDecoderTb is
     signal axisMaster : AxiStreamMasterType := AXI_STREAM_MASTER_INIT_C;
     signal axisSlave  : AxiStreamSlaveType  := AXI_STREAM_SLAVE_FORCE_C;
 
+    signal checksReady : sl := '0';
+
 begin
 
     ---------------------------
@@ -165,7 +167,7 @@ begin
                 if r.cnt(0) = '1' then
                     v.dataDbSd := r.cnt(7 downto 0);  -- Lower 8 bits of counter
                     -- Update the checksum
-                    v.checks := r.checks - v.dataDbSd;
+                    v.checks   := r.checks - v.dataDbSd;
                 else
                     v.dataDbSd := (others => '1');    -- Set DB to all ones
                 end if;
@@ -182,6 +184,8 @@ begin
                 -- Checksum MSB
                 v.dataDbSd  := r.checks(15 downto 8);
                 v.dataDbSdK := '0';
+            elsif r.cnt = 1030 then
+                checksReady <= '1';
             else
                 v.dataDbSd  := (others => '0');
                 v.dataDbSdK := '0';
@@ -242,5 +246,34 @@ begin
             r <= rin after TPD_C;
         end if;
     end process seq;
+
+
+    ---------------------------------
+    -- AXI-Lite Register Transactions
+    ---------------------------------
+    test : process is
+        variable debugData : slv(31 downto 0) := (others => '0');
+    begin
+        ------------------------------------------
+        -- Wait for the AXI-Lite reset to complete
+        ------------------------------------------
+        wait until axiRst = '1';
+        wait until axiRst = '0';
+        wait until checksReady = '1';
+
+        -------------------
+        -- Axi reads/writes
+        -------------------
+        -- Write to EvrTrgs EventCode register
+        axiLiteBusSimRead (axiClk, axilReadMaster, axilReadSlave, x"0000_0008", debugData, true);
+        axiLiteBusSimWrite (axiClk, axilWriteMaster, axilWriteSlave, x"0000_0008", x"0000_00AA", true);
+        axiLiteBusSimRead (axiClk, axilReadMaster, axilReadSlave, x"0000_0008", debugData, true);
+
+        -- Read the checksum registers
+        axiLiteBusSimRead (axiClk, axilReadMaster, axilReadSlave, x"0010_1008", debugData, true);
+        axiLiteBusSimRead (axiClk, axilReadMaster, axilReadSlave, x"0010_100C", debugData, true);
+
+    end process test;
+
 
 end testbed;
