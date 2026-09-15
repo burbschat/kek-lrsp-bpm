@@ -233,6 +233,7 @@ architecture mapping of EvrGty is
         dummySdTrig : sl;
         dummySdData : slv(31 downto 0);  -- TODO: Use axi ram for larger buffer
         dummySdSeg  : slv(7 downto 0);
+        dummyDbData : slv(7 downto 0);
 
         -- loopback : slv(2 downto 0);
 
@@ -276,6 +277,7 @@ architecture mapping of EvrGty is
         dummySdTrig => '0',
         dummySdData => x"76543210",
         dummySdSeg  => (others => '0'),
+        dummyDbData => (others => '0'),
 
         -- loopback => "000",              -- 0b000 is normal operation
 
@@ -288,7 +290,8 @@ architecture mapping of EvrGty is
         LEAD_S,
         SEG_S,
         TX_S,
-        TRAIL_S);
+        TRAIL_S,
+        CHECKS_S);
 
     type TxDummyRegType is record
         txData        : slv(15 downto 0);
@@ -297,6 +300,7 @@ architecture mapping of EvrGty is
         sdState       : TxDummySdStateType;
         sdSegWait     : sl;
         sdCycleCount  : slv(31 downto 0);
+        checks        : slv(15 downto 0);  -- Checksum
     end record TxDummyRegType;
 
     constant TX_DUMMY_REG_INIT_C : TxDummyRegType := (
@@ -305,7 +309,8 @@ architecture mapping of EvrGty is
         transmitComma => '0',
         sdState       => IDLE_S,
         sdSegWait     => '0',
-        sdCycleCount  => (others => '0'));
+        sdCycleCount  => (others => '0'),
+        checks        => (others => '0'));
 
 
     signal r   : RegType := REG_INIT_C;
@@ -558,6 +563,7 @@ begin
         axiSlaveRegister (axilEp, x"14", 0, v.dummySdData);  -- 4 bytes of data for dummy SD transmission
         axiSlaveRegister (axilEp, x"18", 0, v.dummySdSeg);   -- Segment byte
         axiSlaveRegister (axilEp, x"1c", 0, v.dummySdTrig);  -- Software trigger dummy SD transmission
+        axiSlaveRegister (axilEp, x"20", 0, v.dummyDbData);  -- 1 byte dummy DB value
 
         -- axiSlaveRegister (axilEp, x"14", 0, v.loopback);  -- GTY loopback mode
 
@@ -603,6 +609,7 @@ begin
     -- Generate some test data
     -- Dont really care about synchronization for most registers as they should
     -- be stable for many clocks...
+    -- Could implement this cleaner but don't care for now. This is only for debugging.
     txDummyComb : process(txDummyR, r, gtReset, txResetDone, dummySdTrigSync)
         variable v : TxDummyRegType;
     begin
@@ -639,6 +646,9 @@ begin
             when IDLE_S =>
                 -- Initiate dummy transmission if triggered
                 if dummySdTrigSync = '1' then
+                    -- Reset the checksum
+                    v.checks  := (others => '1');
+                    -- Move to next state
                     v.sdState := LEAD_S;
                 end if;
             when LEAD_S =>
@@ -663,13 +673,13 @@ begin
                     v.txDataK(1)          := '0';
                 else
                     -- Reset flag
-                    v.sdSegWait := '0';
+                    v.sdSegWait    := '0';
                     -- 4 SD bytes, one every other cycle.
                     -- DB cycles: 7, 5, 3, 1
                     -- SD cycles: 6, 4, 2, 0
-                    v.sdCycleCount        := toSlv(8-1, 32);
+                    v.sdCycleCount := toSlv(8-1, 32);
                     -- Start transmitting data
-                    v.sdState             := TX_S;
+                    v.sdState      := TX_S;
                 end if;
             when TX_S =>
                 -- TODO: For now buffer has fixed length to fit one 32 bit AXI register.
@@ -679,20 +689,46 @@ begin
                     -- Discard lower counter bit to get correct indicies
                     v.txData(15 downto 8) := r.dummySdData(conv_integer(txDummyR.sdCycleCount(31 downto 1))*8+7 downto conv_integer(txDummyR.sdCycleCount(31 downto 1))*8);
                     v.txDataK(1)          := '0';
+
+                    -- Subtract data (8 bit) from the checksum register (16 bit)
+                    v.checks := v.checks - v.txData(15 downto 8);
                 else
-                -- TODO: Add DB data?
+                    -- Dummy DB data
+                    v.txData(15 downto 8) := r.dummyDbData;
+                    v.txDataK(1)          := '0';
                 end if;
                 v.sdCycleCount := txDummyR.sdCycleCount - 1;
                 if txDummyR.sdCycleCount = 0 then
                     v.sdState := TRAIL_S;
                 end if;
             when TRAIL_S =>
-                -- Transmit end byte
-                v.txData(15 downto 8) := x"3C";
-                v.txDataK(1)          := '1';
-                -- TODO: Implement trailing checksum bytes
-                -- Return to idle
-                v.sdState             := IDLE_S;
+                v.sdSegWait := '1';
+                if txDummyR.sdSegWait = '0' then
+                    -- Transmit end byte
+                    v.txData(15 downto 8) := x"3C";
+                    v.txDataK(1)          := '1';
+                else
+                    -- Reset flag
+                    v.sdSegWait    := '0';
+                    -- Reuse the counter...
+                    v.sdCycleCount := toSlv(3, 32);
+                    -- Transmit trailing checksum bytes
+                    v.sdState      := CHECKS_S;
+                end if;
+            when CHECKS_S =>
+                if txDummyR.sdCycleCount = 3 then
+                    -- Transmit LSB
+                    v.txData(15 downto 8) := txDummyR.checks(7 downto 0);
+                    v.txDataK(1)          := '0';
+                elsif txDummyR.sdCycleCount = 1 then
+                    -- Transmit MSB
+                    v.txData(15 downto 8) := txDummyR.checks(15 downto 8);
+                    v.txDataK(1)          := '0';
+                elsif txDummyR.sdCycleCount = 0 then
+                    -- Return to idle
+                    v.sdState := IDLE_S;
+                end if;
+                v.sdCycleCount := txDummyR.sdCycleCount - 1;
         end case;
 
         -- Outputs

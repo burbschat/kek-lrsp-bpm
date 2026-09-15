@@ -368,5 +368,15 @@ class EvrGty(pr.Device):
             hidden       = False,
         ))
 
+        self.add(pr.RemoteVariable(
+            name         = f'dummyDbData',
+            description  = f'Data for dummy DB transmission.',
+            offset       = 0x20,
+            bitOffset    = 0,
+            bitSize      = 32,
+            mode         = 'RW',
+            hidden       = False,
+        ))
+
         # Offset 0x0001_0000 and above is axil translated DRP interface to GTY transceiver.
         # Registers for DRP could be added here (preferably as a nested device).
