@@ -301,7 +301,7 @@ begin
                             -- checksums fail (indicating misalignment)?
                             v.alignDone := '1';
 
-                            -- Reset the locally computed of the checksum
+                            -- Reset the locally computed version of the checksum
                             v.checksLoc := (others => '1');
 
                             -- Preset counter
