@@ -16,9 +16,9 @@ class EvrSdBuffer(pr.Device):
             pollInterval = 1,
             hidden       = True,
             enum         = {
-                0: 'IDLE_S',
-                1: 'DONE_S',
-                2: 'MOVE_S',
+                0: 'IDLE',
+                1: 'DONE',
+                2: 'MOVE',
             },
         ))
 
@@ -91,7 +91,7 @@ class EvrDbSd(pr.Device):
 
         self._statesEnum = {
                 0x0: 'IDLE',
-                0x1: 'RECEIVE_S',
+                0x1: 'RECEIVE',
         }
 
         self.add(EvrSdBuffer(
