@@ -18,7 +18,7 @@ source $::env(RUCKUS_PROC_TCL)
 # Bypass the debug chipscope generation via return cmd
 # ELSE ... comment out the return to include chipscope
 ######################################################
-# return
+return
 
 ############################
 ## Open the synthesis design
@@ -73,8 +73,8 @@ ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/readoutTrigSync*}
 
 ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/axis*}
 
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/dataR*}
-ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axilR*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/dataR*}
+# ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axilR*}
 # ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/txSlave*}
 # ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axisMaster*}
 # ConfigProbe ${ilaName} {U_App/U_EvrDecoder/U_DBSD/U_AxiStreamFrameBuffer/axisSlave*}
