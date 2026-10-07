@@ -18,6 +18,10 @@ loadSource -sim_only -lib unisim -dir "$::env(XILINX_VIVADO)/data/vhdl/src/unisi
 
 # Load IP cores
 loadIpCore -dir "$::DIR_PATH/ip"
+# Generate rfdc config ROM file (PYRFDC_CONFIG.mem) from the xci file.
+# axi-soc-ultra-plus-core AxiSocUltraPlusReg.vhd loads this into a
+# memory block in the FPGA.
+AddPyRfdcMem
 
 # Updating the impl_1 strategy
 set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
