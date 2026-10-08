@@ -667,7 +667,6 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 typeStr="Float64[np]",
                 value=np.zeros(shape=2048, dtype=np.uint16, order="C"),
                 hidden=True,
-                groups=guiGroups,  # Maybe also want metadata in the GUI?
             )
         )
 
