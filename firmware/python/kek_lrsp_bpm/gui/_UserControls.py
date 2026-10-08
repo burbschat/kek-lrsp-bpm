@@ -100,108 +100,94 @@ class TriggerControls(PyDMFrame):
         self.trig_deglitch_spinbox_raw.spinbox.setSingleStep(1)
         self.main_layout.addWidget(self.trig_deglitch_spinbox_raw)
 
-
-# This is sort of an experiment to see if I can dynamically adjust the UI
-# depending on the number of windows. Stuff like the debug tree and at this
-# point also the scatter plots I believe do just require a full restart of the
-# GUI though...
-# Actually this also does not quite work when the widget is supposed to read a
-# value as apparently something in the application keeps track of the variable
-# tree and that is not updated even when the rogue backend server is
-# re-connected (maybe there is an option for that?).
-# Alternative might be to always have all window vars/widgets and
-# enable/disable as required? Probably not worth the effort though...
+# Dynamically adding/removing widgets from the layout did not work so well
+# (wanted to get the number of windows from a pydm channel and then construct
+# the layout according to it...). So instead instantiate a fixed number of
+# widgets and then hide the unused ones.
 class PoscalcWindowControls(PyDMFrame):
-    def __init__(self, parent=None, init_channel=None):
+    def __init__(self, parent=None, init_channel=None, max_num_windows=8):
         super().__init__(parent=parent, init_channel=init_channel)
-        # Default value for number of windows
+
+        self._max_windows = max_num_windows
+
         self.num_windows = 2
-        # Call initial setup
+
         self.setup_ui()
-        # Setup channel to receive number of windows
         self.setup_num_windows_channel()
 
     def setup_ui(self):
-        # Construct main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setAlignment(QtCore.Qt.AlignTop)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
         self.setLayout(self.main_layout)
 
-        # List to hold widgets so we can remove and re-add them on num_windows
-        # update. All dynamic widgets must be in this list.
-        self.dynamic_widgets = []
+        self.window_widgets = {
+            "ns": [],
+            "raw": [],
+        }
 
-        # Construct static part of the UI
-        # self.redraw_button = QPushButton("Redraw", self)  # Redraw button for debug
-        # self.main_layout.addWidget(self.redraw_button)
-        # self.redraw_button.clicked.connect(self.redraw_ui)
+        for units in ["ns", "raw"]:
+            for i in range(self._max_windows):
+                container = self.construct_window_widget(units, i)
+                self.window_widgets[units].append(container)
+                self.main_layout.addWidget(container)
+
+        self.update_visibility()
+
+    def construct_window_widget(self, units, i):
+        sub_layout = QHBoxLayout()
+        sub_layout.setContentsMargins(0, 0, 0, 0)
+
+        container = QWidget()
+        container.setLayout(sub_layout)
+
+        window_label = QLabel(text=f"Wd. {i}")
+        sub_layout.addWidget(window_label)
+
+        window_start = SpinboxWithLabel(
+            f"Start ({units})",
+            init_channel=(f"{self.channel}.WindowOpen" f"{'Raw' if units == 'raw' else ''}[{i}]"),
+        )
+        window_start.spinbox.setWriteOnPress(True)
+        window_start.spinbox.setShowStepExponent(False)
+        window_start.spinbox.setSingleStep(1)
+        sub_layout.addWidget(window_start)
+
+        window_end = SpinboxWithLabel(
+            f"End ({units})",
+            init_channel=(f"{self.channel}.WindowClose" f"{'Raw' if units == 'raw' else ''}[{i}]"),
+        )
+        window_end.spinbox.setWriteOnPress(True)
+        window_end.spinbox.setShowStepExponent(False)
+        window_end.spinbox.setSingleStep(1)
+        sub_layout.addWidget(window_end)
+
+        return container
 
     def setup_num_windows_channel(self):
         self.num_windows_channel = PyDMChannel(
             address=f"{self.channel}.NumWindows",
             value_slot=self.receive_num_windows,
-            connection_slot=self.redraw_ui,
         )
         self.num_windows_channel.connect()
 
     def receive_num_windows(self, new_value):
-        if new_value != self.num_windows:
-            self.num_windows = new_value
-            self.redraw_ui()
+        try:
+            new_value = int(new_value)
+        except (TypeError, ValueError):
+            return
 
-    def remove_dynamic_widgets(self):
-        while len(self.dynamic_widgets) > 0:
-            self.main_layout.removeWidget(self.dynamic_widgets.pop(0))
+        if new_value == self.num_windows:
+            return
 
-    def construct_dynamic_widgets(self):
-        spin_box_step = 1
-        for units in ["ns", "raw"]:
-            for i in range(self.num_windows):
-                # Use container so we can easily remove this later
-                sub_layout = QHBoxLayout()
-                sub_layout.setContentsMargins(0, 0, 0, 0)
-                container = QWidget()
-                container.setLayout(sub_layout)
+        self.num_windows = new_value
+        self.update_visibility()
 
-                window_label = QLabel(text=f"Wd. {i}")
-                sub_layout.addWidget(window_label)
-
-                window_start = SpinboxWithLabel(
-                    f"Start ({units})", init_channel=f"{self.channel}.WindowOpen{'Raw' if units == 'raw' else ''}[{i}]"
-                )
-                window_start.spinbox.setWriteOnPress(True)
-                window_start.spinbox.setShowStepExponent(False)
-                window_start.spinbox.setSingleStep(spin_box_step)
-                sub_layout.addWidget(window_start)
-
-                window_end = SpinboxWithLabel(
-                    f"End ({units})", init_channel=f"{self.channel}.WindowClose{'Raw' if units == 'raw' else ''}[{i}]"
-                )
-                window_end.spinbox.setWriteOnPress(True)
-                window_end.spinbox.setShowStepExponent(False)
-                window_end.spinbox.setSingleStep(spin_box_step)
-                sub_layout.addWidget(window_end)
-
-                # Only make sense when charge threshold used but we would like to
-                # get rid of that anyways so leave those widgets disabled for
-                # now...
-                # charge_threshold = SpinboxWithLabel(f"Wd. {i} C Thresh.", init_channel=f"{self.channel}.ChargeThreshold[{i}]")
-                # charge_threshold.spinbox.setWriteOnPress(True)
-                # charge_threshold.spinbox.setShowStepExponent(False)
-                # charge_threshold.spinbox.setSingleStep(1)
-                # sub_layout.addWidget(charge_threshold)
-                #
-                # empty_cnt = ValueWithLabel(f"Wd. {i} Empty Cnt.", init_channel=f"{self.channel}.EmptyShotsSinceLast[{i}]")
-                # sub_layout.addWidget(empty_cnt)
-
-                self.dynamic_widgets.append(container)
-                self.main_layout.addWidget(self.dynamic_widgets[-1])
-
-    def redraw_ui(self):
-        self.remove_dynamic_widgets()
-        self.construct_dynamic_widgets()
+    def update_visibility(self):
+        for widgets in self.window_widgets.values():
+            for i, widget in enumerate(widgets):
+                widget.setVisible(i < self.num_windows)
 
 
 class PoscalcControls(PyDMFrame):
