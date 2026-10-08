@@ -94,6 +94,7 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         flipY=False,
         sampleRate=5.0e9,
         bufferDepth=2**6,
+        metadataArrLen=2048,
         **kwargs,
     ):
         pr.Device.__init__(self, *args, **kwargs)
@@ -145,6 +146,8 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
         # Number of windows for which to integrate the waveform and compute
         # a position.
         self._nWindows = nWindows
+
+        self._metadataArrLen = metadataArrLen
 
         # Make time direction positive here even though the trigger is at the
         # end of the waveform This is done as otherwise specification of the
@@ -957,6 +960,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
             # Metadata is uint16 but big endian as it originates from some
             # PowerPC VNC device. Decode accordingly.
             meta = meta.view(">u2")
+            # Pad with zeroes just in case there is less than expected data
+            # (seems to happen if GTY never initialized)
+            meta = np.pad(meta, self._metadataArrLen, mode="constant", constant_values=0)
             # np.set_printoptions(threshold=sys.maxsize)
             # print("Batcher header:", batcher_header)
             # print("Metadata:", meta)
