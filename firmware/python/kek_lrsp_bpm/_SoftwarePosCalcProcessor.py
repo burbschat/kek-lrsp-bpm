@@ -679,7 +679,9 @@ class SoftwarePosCalcProcessor(pr.DataReceiver):
                 description="Shot ID extracted from metadata buffer",
                 mode="RO",
                 dependencies=[self.Metadata],
-                linkedGet=lambda: self.Metadata.value()[2],
+                # One segment has 16 byte and shot id is in segment 1, not 0 so
+                # add offset.
+                linkedGet=lambda: self.Metadata.value()[16 // 2 + 2],
             )
         )
 
