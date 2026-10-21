@@ -275,6 +275,15 @@ begin
             v.checksMismatch := '0';
         end if;
 
+        if SD_EN_G then
+            -- isSd toggling should happen independent of dataValid as
+            -- otherwise if the data was invalid for an odd number of cycles
+            -- we would run out of sync with the event master.
+            if dataR.alignDone = '1' then
+                v.isSd := not dataR.isSd;  -- Toggle
+            end if;
+        end if;
+
         if dataValid = '1' then         -- Do nothing if data invalid
             dataVar := data;
 
@@ -282,9 +291,6 @@ begin
             -- SD_EN might as well be a register but if so one must ensure
             -- reset after writing to it to ensure re-align.
             if SD_EN_G then
-                if dataR.alignDone = '1' then
-                    v.isSd := not dataR.isSd;  -- Toggle
-                end if;
                 -- State machine
                 case dataR.state is
                     when IDLE_S =>
