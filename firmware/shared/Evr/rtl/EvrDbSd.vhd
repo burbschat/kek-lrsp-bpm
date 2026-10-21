@@ -339,12 +339,13 @@ begin
                             else
                                 v.sdData  := data;  -- Set data
                                 v.writeEn := '1';   -- Enable write to buffer
+                            end if;
 
-                                -- Compute checksum if enabled
-                                if CHECKS_EN_G then
-                                    -- Subtract data (8 bit) from the checksum register (16 bit)
-                                    v.checksLoc := v.checksLoc - data;
-                                end if;
+                            -- Compute checksum if enabled. This deliberately includes the segment byte
+                            -- to match what the event master does.
+                            if CHECKS_EN_G then
+                                -- Subtract data (8 bit) from the checksum register (16 bit)
+                                v.checksLoc := v.checksLoc - data;
                             end if;
                         end if;
                     when CHECKS_S =>
@@ -353,13 +354,13 @@ begin
                         if dataR.checksRecByteStat /= b"11" then
                             -- Receive the checksum
                             if dataR.isSd = '1' then
-                                -- LSB comes first, MSB comes second
-                                if dataR.checksRecByteStat(0) = '0' then
-                                    v.checksRec(7 downto 0) := data;
-                                    v.checksRecByteStat(0)  := '1';
-                                elsif dataR.checksRecByteStat(1) = '0' then
+                                -- MSB comes first, LSB comes second
+                                if dataR.checksRecByteStat(1) = '0' then
                                     v.checksRec(15 downto 8) := data;
                                     v.checksRecByteStat(1)   := '1';
+                                elsif dataR.checksRecByteStat(0) = '0' then
+                                    v.checksRec(7 downto 0) := data;
+                                    v.checksRecByteStat(0)  := '1';
                                 end if;
                             end if;
                         else

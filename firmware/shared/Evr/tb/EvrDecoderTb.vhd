@@ -163,6 +163,8 @@ begin
                 -- Segment indicator
                 v.dataDbSd  := x"01";
                 v.dataDbSdK := '0';
+                -- Update the checksum. The segment byte counts as well.
+                v.checks    := r.checks - v.dataDbSd;
             elsif (r.cnt >= 512) and (r.cnt < 1024) then
                 if r.cnt(0) = '1' then
                     v.dataDbSd := r.cnt(7 downto 0);  -- Lower 8 bits of counter
@@ -177,12 +179,12 @@ begin
                 v.dataDbSd  := x"3C";
                 v.dataDbSdK := '1';
             elsif r.cnt = 1027 then
-                -- Checksum LSB
-                v.dataDbSd  := r.checks(7 downto 0);
-                v.dataDbSdK := '0';
-            elsif r.cnt = 1029 then
                 -- Checksum MSB
                 v.dataDbSd  := r.checks(15 downto 8);
+                v.dataDbSdK := '0';
+            elsif r.cnt = 1029 then
+                -- Checksum LSB
+                v.dataDbSd  := r.checks(7 downto 0);
                 v.dataDbSdK := '0';
             elsif r.cnt = 1030 then
                 checksReady <= '1';
